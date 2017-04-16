@@ -13,14 +13,14 @@ TextureBuffer3D::TextureBuffer3D(GLuint width, GLuint height, GLuint depth)
 	glGenTextures(1, &m_texture);
 	glBindTexture(GL_TEXTURE_3D, m_texture);
 
-	glTexImage3D(GL_TEXTURE_3D, 0, GL_RGB, m_width, m_height, m_depth, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
+	glTexImage3D(GL_TEXTURE_3D, 0, GL_R16F, m_width, m_height, m_depth, 0, GL_RED, GL_HALF_FLOAT, nullptr);
 
-	glTextureParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-	glTextureParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-	glTextureParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
-	glTextureParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
-	glTextureParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_BORDER);
+	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_REPEAT);
 
 	glBindFramebuffer(GL_FRAMEBUFFER, m_fbo);
 	glFramebufferTexture(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, m_texture, 0);
@@ -43,7 +43,7 @@ TextureBuffer3D::~TextureBuffer3D()
 void TextureBuffer3D::Bind() const
 {
 	glBindFramebuffer(GL_FRAMEBUFFER, m_fbo);
-	glViewport(0, 0, m_width, m_depth);
+	glViewport(0, 0, m_width, m_height);
 }
 
 void TextureBuffer3D::Unbind() const
@@ -54,4 +54,9 @@ void TextureBuffer3D::Unbind() const
 void TextureBuffer3D::BindTexture() const
 {
 	glBindTexture(GL_TEXTURE_3D, m_texture);
+}
+
+GLuint TextureBuffer3D::GetLayerCount() const
+{
+	return m_depth;
 }

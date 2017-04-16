@@ -46,10 +46,27 @@ void Input::HandleCursor(double xpos, double ypos)
 	m_mouseCoordsChanged = true;
 }
 
+void Input::Update()
+{
+	memcpy(m_keys_prev, m_keys, sizeof(m_keys));
+}
+
 bool Input::IsKeyDown(int key) const
 {
 	if (key >= 0 && key < 1024)
 		return m_keys[key];
+
+	return false;
+}
+
+bool Input::IsKeyPressed(int key) const
+{
+	if(key >= 0 && key < 1024)
+	{
+		// if the key is pressed, but was not pressed in the previous frame
+		if (m_keys[key] && !m_keys_prev[key])
+			return true;
+	}
 
 	return false;
 }

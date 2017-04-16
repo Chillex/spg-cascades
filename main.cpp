@@ -2,6 +2,7 @@
 #include <GLFW/glfw3.h>
 
 #include <glm/gtc/type_ptr.hpp>
+#include <glm/gtc/matrix_transform.hpp>
 
 #include "Window.h"
 #include "Color.h"
@@ -13,16 +14,21 @@
 #include "FPSCamera.h"
 #include "TextureBuffer3D.h"
 #include "TextureBuffer.h"
+#include "RenderVolume.h"
 
 int main()
 {
 	// setup window
 	Window window(1280, 720, "Cascades Demo");
-	window.SetClearColor({ 0.12f, 0.26f, 0.35f, 1.0f });
+	window.SetClearColor({ 0.06f, 0.13f, 0.175f, 1.0f });
 
 	// setup input
 	Input* input = new Input();
 	window.SetInput(input);
+
+	// input values
+	bool wireframeMode = false;
+	bool showDebugQuad = false;
 
 	GLfloat points[] = {
 		-0.5f,  0.5f, 0.38f, 0.49f, 0.65f,
@@ -69,37 +75,40 @@ int main()
 	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(GLfloat), reinterpret_cast<GLvoid*>(0));
 	glBindVertexArray(0);
 
-
 	// Shader Library
 	Path shaderPath(std::experimental::filesystem::current_path() / "Assets" / "Shaders");
 	// the shader library will watch the given path with a thread
 	// and hot reload all shaders added to it with "WatchShader()"
 	ShaderLibrary shaderLib(shaderPath);
 	
-	std::string testShaderKey = "test";
-	std::string standardTextureShaderKey = "standard-texture";
+	std::string debug3DTextureShaderKey = "debug-3dtexture";
 	std::string densityShaderKey = "density";
-	shaderLib.WatchShader(testShaderKey);
-	shaderLib.WatchShader(standardTextureShaderKey);
+	std::string marchingCubesShaderKey = "marching-cubes";
+	shaderLib.WatchShader(debug3DTextureShaderKey);
 	shaderLib.WatchShader(densityShaderKey);
+	shaderLib.WatchShader(marchingCubesShaderKey);
 
 	// compile all the shaders
 	shaderLib.Update();
 
-	Texture2D wallTex("Assets/Textures/wall_color.png");
+	// debug for 3d texture
 	Quad debugQuad;
+	GLuint layer = 0;
 
 	FPSCamera camera(glm::vec3(0.0f, 0.0f, -3.0f), glm::vec3(0.0f, 1.0f, 0.0f), 45.0f, 5.0f, 0.2f);
-	
-	//glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 
 	GLfloat currentFrameTime = glfwGetTime();
 	GLfloat lastFrameTime = currentFrameTime;
 	GLfloat deltaTime;
 
 	// prerender density texture
-	TextureBuffer densityTextureBuffer(96, 96);
-	//TextureBuffer3D densityTextureBuffer(96, 96, 96);
+	GLuint width = 96;
+	GLuint height = 256;
+	GLuint depth = 96;
+	//TextureBuffer densityTextureBuffer(96, 96);
+	TextureBuffer3D densityTextureBuffer(width, depth, height);
+	// create render volume
+	RenderVolume renderVolume(width, height, depth);
 
 	while(!window.ShouldClose())
 	{
@@ -112,10 +121,28 @@ int main()
 		glfwPollEvents();
 
 		// handle input
-		if(input->IsKeyDown(GLFW_KEY_ESCAPE))
+		if(input->IsKeyPressed(GLFW_KEY_ESCAPE))
 		{
 			glfwSetWindowShouldClose(window.GetGLFWWindow(), GL_TRUE);
 		}
+
+		if (input->IsKeyPressed(GLFW_KEY_T))
+			wireframeMode = !wireframeMode;
+
+		// debug layer of 3d texture
+		if (input->IsKeyPressed(GLFW_KEY_RIGHT_BRACKET))
+		{
+			if (layer < densityTextureBuffer.GetLayerCount())
+				++layer;
+		}
+		if (input->IsKeyPressed(GLFW_KEY_SLASH))
+		{
+			if (layer > 0)
+				--layer;
+		}
+
+		if (input->IsKeyPressed(GLFW_KEY_G))
+			showDebugQuad = !showDebugQuad;
 
 		// camera movement
 		if (input->IsKeyDown(GLFW_KEY_W))
@@ -134,7 +161,13 @@ int main()
 			camera.HandleMouseMovement(input->GetMouseOffsetX(), input->GetMouseOffsetY());
 		}
 
-		glClear(GL_COLOR_BUFFER_BIT);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		glEnable(GL_DEPTH_TEST);
+
+		if (wireframeMode)
+			glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+		else
+			glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
 		// update shaders
 		shaderLib.Update();
@@ -148,34 +181,51 @@ int main()
 		shaderLib.GetShader(densityShaderKey)->Use();
 		densityTextureBuffer.Bind();
 		glBindVertexArray(densityVAO);
-		glDrawArrays(GL_TRIANGLES, 0, 6);
+		glDrawArraysInstanced(GL_TRIANGLES, 0, 6, densityTextureBuffer.GetLayerCount());
 		glBindVertexArray(0);
 		densityTextureBuffer.Unbind();
 
 		glViewport(0, 0, window.GetWidth(), window.GetHeight());
 
-		//shaderLib.GetShader(testShaderKey)->Use();
-		//glBindVertexArray(VAO);
-		//glDrawArrays(GL_POINTS, 0, 4);
-		//glBindVertexArray(0);
-
 		// render debug quad
-		shaderLib.GetShader(standardTextureShaderKey)->Use();
+		if (showDebugQuad)
+		{
+			shaderLib.GetShader(debug3DTextureShaderKey)->Use();
 
-		glActiveTexture(GL_TEXTURE0);
-		densityTextureBuffer.BindTexture();
-		
-		glUniformMatrix4fv(glGetUniformLocation(shaderLib.GetShader(standardTextureShaderKey)->program, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
-		glUniformMatrix4fv(glGetUniformLocation(shaderLib.GetShader(standardTextureShaderKey)->program, "view"), 1, GL_FALSE, glm::value_ptr(viewMatrix));
-		glUniformMatrix4fv(glGetUniformLocation(shaderLib.GetShader(standardTextureShaderKey)->program, "model"), 1, GL_FALSE, glm::value_ptr(debugQuad.GetModelMatrix()));
-		
-		debugQuad.Render();
+			glActiveTexture(GL_TEXTURE0);
+			densityTextureBuffer.BindTexture();
+			
+			glUniformMatrix4fv(glGetUniformLocation(shaderLib.GetShader(debug3DTextureShaderKey)->program, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
+			glUniformMatrix4fv(glGetUniformLocation(shaderLib.GetShader(debug3DTextureShaderKey)->program, "view"), 1, GL_FALSE, glm::value_ptr(viewMatrix));
+			glUniformMatrix4fv(glGetUniformLocation(shaderLib.GetShader(debug3DTextureShaderKey)->program, "model"), 1, GL_FALSE, glm::value_ptr(debugQuad.GetModelMatrix()));
+			
+			GLfloat layerCoord = static_cast<GLfloat>(layer) / static_cast<GLfloat>(densityTextureBuffer.GetLayerCount());
+			glUniform1f(glGetUniformLocation(shaderLib.GetShader(debug3DTextureShaderKey)->program, "textureZCoord"), layerCoord);
+
+			debugQuad.Render();
+		}
+
+		// render the render volume
+		glm::mat4 modelMatrix;
+		modelMatrix = glm::scale(modelMatrix, glm::vec3(10.0f, 10.0f, 10.0f));
+
+		Shader* marchingCubesShader = shaderLib.GetShader(marchingCubesShaderKey);
+		marchingCubesShader->Use();
+
+		glUniformMatrix4fv(glGetUniformLocation(marchingCubesShader->program, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
+		glUniformMatrix4fv(glGetUniformLocation(marchingCubesShader->program, "view"), 1, GL_FALSE, glm::value_ptr(viewMatrix));
+		glUniformMatrix4fv(glGetUniformLocation(marchingCubesShader->program, "model"), 1, GL_FALSE, glm::value_ptr(modelMatrix));
+
+		renderVolume.Render(densityTextureBuffer, marchingCubesShader);
 
 		// swap buffers
 		window.SwapBuffers();
+
+		// update input for next frame
+		input->Update();
 	}
 
 	delete input;
-
+	
 	return 0;
 }

@@ -28,28 +28,28 @@ Shader::Shader(std::string vertexPath, std::string fragmentPath, std::string geo
 {
 	// read shader files
 	const std::string vertexShaderCode = this->GetShaderCode(vertexPath.c_str());
-	const std::string fragmentShaderCode = this->GetShaderCode(fragmentPath.c_str());
 	const std::string geometryShaderCode = this->GetShaderCode(geometryPath.c_str());
+	const std::string fragmentShaderCode = this->GetShaderCode(fragmentPath.c_str());
 
 	// create shaders
 	GLuint vertexShader = this->CreateVertexShader(vertexShaderCode.c_str());
-	GLuint fragmentShader = this->CreateFragmentShader(fragmentShaderCode.c_str());
 	GLuint geometryShader = this->CreateGeometryShader(geometryShaderCode.c_str());
+	GLuint fragmentShader = this->CreateFragmentShader(fragmentShaderCode.c_str());
 
 	// link the shaders together
 	this->program = glCreateProgram();
 
 	glAttachShader(this->program, vertexShader);
-	glAttachShader(this->program, fragmentShader);
 	glAttachShader(this->program, geometryShader);
+	glAttachShader(this->program, fragmentShader);
 	glLinkProgram(this->program);
 
 	CheckLinkStatus();
 
 	// shaders are no longer needed after the program is created
 	glDeleteShader(vertexShader);
-	glDeleteShader(fragmentShader);
 	glDeleteShader(geometryShader);
+	glDeleteShader(fragmentShader);
 }
 
 Shader::~Shader()

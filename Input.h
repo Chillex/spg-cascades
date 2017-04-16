@@ -11,8 +11,10 @@ public:
 
 	void HandleKey(int key, int action);
 	void HandleCursor(double xpos, double ypos);
+	void Update(void);
 
 	bool IsKeyDown(int key) const;
+	bool IsKeyPressed(int key) const;
 
 	bool HasUnreadMouseChanges(void) const;
 	void MouseChangesRead(void);
@@ -20,9 +22,9 @@ public:
 	GLfloat GetLastMouseY(void) const;
 	GLfloat GetMouseOffsetX(void) const;
 	GLfloat GetMouseOffsetY(void) const;
-
 private:
 	bool m_keys[1024] = { false }; // stores the pressed keys
+	bool m_keys_prev[1024] = { false }; // stores the pressed keys from the last frame
 
 	bool m_firstHandleCursor;
 	bool m_mouseCoordsChanged;

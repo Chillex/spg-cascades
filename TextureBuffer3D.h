@@ -14,6 +14,8 @@ public:
 
 	void BindTexture(void) const;
 
+	GLuint GetLayerCount(void) const;
+
 private:
 	GLuint m_fbo;
 	GLuint m_texture;

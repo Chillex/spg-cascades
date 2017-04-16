@@ -131,6 +131,7 @@
     <ClCompile Include="Input.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="Quad.cpp" />
+    <ClCompile Include="RenderVolume.cpp" />
     <ClCompile Include="Shader.cpp" />
     <ClCompile Include="ShaderLibrary.cpp" />
     <ClCompile Include="TextureBuffer3D.cpp" />
@@ -142,7 +143,9 @@
     <ClInclude Include="Color.h" />
     <ClInclude Include="FPSCamera.h" />
     <ClInclude Include="Input.h" />
+    <ClInclude Include="LUT.h" />
     <ClInclude Include="Quad.h" />
+    <ClInclude Include="RenderVolume.h" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="Shader.h" />
     <ClInclude Include="ShaderLibrary.h" />
