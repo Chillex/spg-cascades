@@ -53,6 +53,7 @@ float Shelves(vec3 position)
   return cos(position.z / 12.0f) * 1.5f;
 }
 
+// https://gist.github.com/patriciogonzalezvivo/670c22f3966e662d2f83
 //	Simplex 3D Noise
 //	by Ian McEwan, Ashima Arts
 //
@@ -129,6 +130,8 @@ float snoise(vec3 v){
 }
 
 uniform float offset;
+uniform float noiseStrength;
+uniform vec3 dimensions;
 
 float CalculateDensity()
 {
@@ -154,9 +157,9 @@ float CalculateDensity()
 
   // Add Noise
   vec3 noisePos = position;
-  noisePos.x = ((noisePos.x + 1.0f) / 2.0f) * 96.0f;
-  noisePos.y = ((noisePos.y + 1.0f) / 2.0f) * 96.0f;
-  f += snoise(noisePos) * 0.3f;
+  noisePos.x = ((noisePos.x + 1.0f) / 2.0f) * dimensions.x;
+  noisePos.y = ((noisePos.y + 1.0f) / 2.0f) * dimensions.y;
+  f += snoise(noisePos) * noiseStrength;
 
   return f;
 }

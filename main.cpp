@@ -86,8 +86,10 @@ int main()
 	// create render volume
 	RenderVolume renderVolume(width, height, depth);
 	
-	// variable for density offset
+	// variables for density
 	GLfloat densityOffset = 0.0f;
+	GLfloat noiseStrength = 0.3f;
+	GLfloat densitySpeed = 10.0f;
 
 	while(!window.ShouldClose())
 	{
@@ -121,11 +123,31 @@ int main()
 		}
 
 		// change density offset
-		float densitySpeed = 10.0f;
 		if (input->IsKeyDown(GLFW_KEY_PAGE_UP))
 			densityOffset += 1.0f * densitySpeed;
 		if (input->IsKeyDown(GLFW_KEY_PAGE_DOWN))
 			densityOffset -= 1.0f * densitySpeed;
+
+		// change density speed
+		if (input->IsKeyPressed(GLFW_KEY_M))
+			++densitySpeed;
+		if (input->IsKeyPressed(GLFW_KEY_N))
+		{
+			if(densitySpeed > 1.0f)
+				--densitySpeed;
+		}
+
+		// change density speed
+		if (input->IsKeyPressed(GLFW_KEY_K))
+		{
+			if (noiseStrength < 2.0f)
+				noiseStrength += 0.05f;
+		}
+		if (input->IsKeyPressed(GLFW_KEY_J))
+		{
+			if (noiseStrength > 0.0f)
+				noiseStrength -= 0.05f;
+		}
 
 		if (input->IsKeyPressed(GLFW_KEY_R))
 			camera.PrintInfo();
@@ -170,6 +192,8 @@ int main()
 		shaderLib.GetShader(densityShaderKey)->Use();
 
 		glUniform1f(glGetUniformLocation(shaderLib.GetShader(densityShaderKey)->program, "offset"), densityOffset);
+		glUniform1f(glGetUniformLocation(shaderLib.GetShader(densityShaderKey)->program, "noiseStrength"), noiseStrength);
+		glUniform3f(glGetUniformLocation(shaderLib.GetShader(densityShaderKey)->program, "dimensions"), width, depth, height);
 
 		densityTextureBuffer.Bind();
 		glBindVertexArray(densityVAO);
