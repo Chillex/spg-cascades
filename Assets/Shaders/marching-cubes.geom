@@ -66,6 +66,12 @@ vec3 GetVertexPositionOnEdge(int edgeIndex, vec3 vertexCoords[8], float density[
 }
 
 void main() {
+  // skip first layer because of weird density texture on layer 0
+  if(geo_in[0].worldSpaceCoordinates.y == 0)
+  {
+    return;
+  }
+
   uint lutPosition = geo_in[0].marchingCubesCase * 16; // 16 ints per marching cubes case
 
   for(int i = 0; caseToTriangles[lutPosition + i] != -1; i += 3)

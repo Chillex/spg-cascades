@@ -30,6 +30,8 @@ public:
 	glm::vec3 GetPosition(void) const;
 	glm::quat GetRotation(void) const;
 
+	void PrintInfo(void) const;
+
 private: 
 	float m_yaw;
 	float m_pitch;

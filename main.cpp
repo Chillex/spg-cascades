@@ -30,13 +30,6 @@ int main()
 	bool wireframeMode = false;
 	bool showDebugQuad = false;
 
-	GLfloat points[] = {
-		-0.5f,  0.5f, 0.38f, 0.49f, 0.65f,
-		 0.5f,  0.5f, 0.58f, 0.65f, 0.75f,
-		 0.5f, -0.5f, 0.85f, 0.79f, 0.47f,
-		-0.5f, -0.5f, 0.65f, 0.54f, 0.34f
-	};
-
 	GLfloat densityPoints[] = {
 		// Left bottom triangle
 		-1.0f,  1.0f,
@@ -46,24 +39,7 @@ int main()
 		 1.0f, -1.0f,
 		 1.0f,  1.0f,
 		-1.0f,  1.0f
-
-		//-1.0f,  1.0f, 
-		// 1.0f,  1.0f, 
-		// 1.0f, -1.0f, 
-		//-1.0f, -1.0f
 	};
-
-	GLuint VBO, VAO;
-	glGenBuffers(1, &VBO);
-	glGenVertexArrays(1, &VAO);
-	glBindVertexArray(VAO);
-	glBindBuffer(GL_ARRAY_BUFFER, VBO);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(points), &points, GL_STATIC_DRAW);
-	glEnableVertexAttribArray(0);
-	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(GLfloat), reinterpret_cast<GLvoid*>(0));
-	glEnableVertexAttribArray(1);
-	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(GLfloat), reinterpret_cast<GLvoid*>(2 * sizeof(GLfloat)));
-	glBindVertexArray(0);
 
 	GLuint densityVBO, densityVAO;
 	glGenBuffers(1, &densityVBO);
@@ -95,7 +71,7 @@ int main()
 	Quad debugQuad;
 	GLuint layer = 0;
 
-	FPSCamera camera(glm::vec3(0.0f, 0.0f, -3.0f), glm::vec3(0.0f, 1.0f, 0.0f), 45.0f, 5.0f, 0.2f);
+	FPSCamera camera(glm::vec3(13.0f, 10.0f, 20.0f), glm::vec3(0.0f, 1.0f, 0.0f), 45.0f, 5.0f, 0.2f);
 
 	GLfloat currentFrameTime = glfwGetTime();
 	GLfloat lastFrameTime = currentFrameTime;
@@ -109,6 +85,9 @@ int main()
 	TextureBuffer3D densityTextureBuffer(width, depth, height);
 	// create render volume
 	RenderVolume renderVolume(width, height, depth);
+	
+	// variable for density offset
+	GLfloat densityOffset = 0.0f;
 
 	while(!window.ShouldClose())
 	{
@@ -140,6 +119,16 @@ int main()
 			if (layer > 0)
 				--layer;
 		}
+
+		// change density offset
+		float densitySpeed = 10.0f;
+		if (input->IsKeyDown(GLFW_KEY_PAGE_UP))
+			densityOffset += 1.0f * densitySpeed;
+		if (input->IsKeyDown(GLFW_KEY_PAGE_DOWN))
+			densityOffset -= 1.0f * densitySpeed;
+
+		if (input->IsKeyPressed(GLFW_KEY_R))
+			camera.PrintInfo();
 
 		if (input->IsKeyPressed(GLFW_KEY_G))
 			showDebugQuad = !showDebugQuad;
@@ -179,6 +168,9 @@ int main()
 
 		// first renderpass -> render density texture
 		shaderLib.GetShader(densityShaderKey)->Use();
+
+		glUniform1f(glGetUniformLocation(shaderLib.GetShader(densityShaderKey)->program, "offset"), densityOffset);
+
 		densityTextureBuffer.Bind();
 		glBindVertexArray(densityVAO);
 		glDrawArraysInstanced(GL_TRIANGLES, 0, 6, densityTextureBuffer.GetLayerCount());

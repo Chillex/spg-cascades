@@ -2,10 +2,11 @@
 
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/quaternion.hpp>
+#include <iostream>
 
 FPSCamera::FPSCamera(glm::vec3 position, glm::vec3 up, float fieldOfView, float speed, float sensitivity)
 	: m_pitch(0.0f)
-	, m_yaw(90.0f)
+	, m_yaw(245.0f)
 	, m_roll(0.0f)
 	, m_fov(fieldOfView)
 	, m_speed(speed)
@@ -84,6 +85,12 @@ glm::quat FPSCamera::GetRotation(void) const
 	glm::quat quatZ = glm::angleAxis(glm::radians(m_roll), glm::vec3(0.0f, 0.0f, 1.0f));
 
 	return quatX * quatY * quatZ;
+}
+
+void FPSCamera::PrintInfo() const
+{
+	std::cout << m_cameraPos.x << "/" << m_cameraPos.y << "/" << m_cameraPos.z << std::endl;
+	std::cout << m_yaw << std::endl;
 }
 
 void FPSCamera::UpdateVectors(void)
