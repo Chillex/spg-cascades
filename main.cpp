@@ -175,10 +175,7 @@ int main()
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		glEnable(GL_DEPTH_TEST);
 
-		if (wireframeMode)
-			glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-		else
-			glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
 		// update shaders
 		shaderLib.Update();
@@ -221,6 +218,9 @@ int main()
 			debugQuad.Render();
 		}
 
+		if (wireframeMode)
+			glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+		
 		// render the render volume
 		glm::mat4 modelMatrix;
 		modelMatrix = glm::scale(modelMatrix, glm::vec3(10.0f, 10.0f, 10.0f));
