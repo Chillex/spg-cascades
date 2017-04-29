@@ -33,6 +33,7 @@ in VS_OUT {
 
 out GS_OUT {
 	vec3 normal;
+  vec3 worldSpaceCoordinates;
 } geo_out;
 
 uniform mat4 model;
@@ -82,14 +83,17 @@ void main() {
 		vec3 normal = GetNormal(p1, p2, p3);
 
 		geo_out.normal = normal;
+    geo_out.worldSpaceCoordinates = p1;
 		gl_Position = projection * view * model * vec4(p1, 1.0f);
     EmitVertex();
 
 		geo_out.normal = normal;
+    geo_out.worldSpaceCoordinates = p2;
     gl_Position = projection * view * model * vec4(p2, 1.0f);
     EmitVertex();
 
 		geo_out.normal = normal;
+    geo_out.worldSpaceCoordinates = p3;
     gl_Position = projection * view * model * vec4(p3, 1.0f);
     EmitVertex();
 

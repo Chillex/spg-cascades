@@ -111,12 +111,12 @@ int main()
 			wireframeMode = !wireframeMode;
 
 		// debug layer of 3d texture
-		if (input->IsKeyPressed(GLFW_KEY_RIGHT_BRACKET))
+		if (input->IsKeyDown(GLFW_KEY_RIGHT_BRACKET))
 		{
 			if (layer < densityTextureBuffer.GetLayerCount())
 				++layer;
 		}
-		if (input->IsKeyPressed(GLFW_KEY_SLASH))
+		if (input->IsKeyDown(GLFW_KEY_SLASH))
 		{
 			if (layer > 0)
 				--layer;

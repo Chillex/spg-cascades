@@ -146,7 +146,6 @@
     <ClInclude Include="LUT.h" />
     <ClInclude Include="Quad.h" />
     <ClInclude Include="RenderVolume.h" />
-    <ClInclude Include="resource.h" />
     <ClInclude Include="Shader.h" />
     <ClInclude Include="ShaderLibrary.h" />
     <ClInclude Include="TextureBuffer3D.h" />

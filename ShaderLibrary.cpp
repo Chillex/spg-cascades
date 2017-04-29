@@ -95,7 +95,6 @@ void ShaderLibrary::WatchDirectory()
 {
 	while(m_isWatching)
 	{
-		// TODO check last modified dates and set dirty flags
 		for (auto it = m_loadedShaders.begin(); it != m_loadedShaders.end(); ++it)
 		{
 			std::string id = it->first;

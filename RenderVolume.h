@@ -25,6 +25,13 @@ private:
 	GLuint m_polyCountLutUBO;
 	GLuint m_triangeConnectionLutUBO;
 	GLuint m_yPositionsUBO;
+
+	GLuint m_rockTextureX;
+	GLuint m_rockTextureY;
+	GLuint m_rockTextureZ;
+
+	void GenerateTextures(void);
+	void GenerateTexture(GLuint& textureID, const char* texturePath);
 };
 
 #endif

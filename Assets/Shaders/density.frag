@@ -166,7 +166,13 @@ float CalculateDensity()
 
 void main()
 {
-  float f = CalculateDensity();
-
-  color = vec3(f, 0, 0);
+  if(fs_in.position.z - offset == 0 || fs_in.position.z - offset == dimensions.z - 1)
+  {
+    color = vec3(0, 0, 0);
+  }
+  else
+  {
+    float f = CalculateDensity();
+    color = vec3(f, 0, 0);
+  }
 }

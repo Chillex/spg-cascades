@@ -6,6 +6,7 @@
 #include "TextureBuffer3D.h"
 #include "Shader.h"
 #include "LUT.h"
+#include <SOIL/SOIL.h>
 
 RenderVolume::RenderVolume(GLuint width, GLuint height, GLuint depth)
 	: m_width(width)
@@ -63,6 +64,8 @@ RenderVolume::RenderVolume(GLuint width, GLuint height, GLuint depth)
 		glBufferData(GL_UNIFORM_BUFFER, sizeof(GLfloat) * height, nullptr, GL_DYNAMIC_DRAW);
 		glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(GLfloat) * height, yPosition);
 	glBindBuffer(GL_UNIFORM_BUFFER, 0);
+
+	GenerateTextures();
 }
 
 RenderVolume::~RenderVolume()
@@ -90,7 +93,42 @@ void RenderVolume::Render(const TextureBuffer3D& densityTexture, const Shader* s
 
 	glActiveTexture(GL_TEXTURE0);
 	densityTexture.BindTexture();
-		glBindVertexArray(m_vao);
-			glDrawArraysInstanced(GL_POINTS, 0, m_width * m_depth * 2, m_height - 1);
-		glBindVertexArray(0);
+	glUniform1i(glGetUniformLocation(shader->program, "densityTexture"), 0);
+		glActiveTexture(GL_TEXTURE1);
+		glBindTexture(GL_TEXTURE_2D, m_rockTextureX);
+		glUniform1i(glGetUniformLocation(shader->program, "rockTextureX"), 1);
+			glActiveTexture(GL_TEXTURE2);
+			glBindTexture(GL_TEXTURE_2D, m_rockTextureY);
+			glUniform1i(glGetUniformLocation(shader->program, "rockTextureY"), 2);
+				glActiveTexture(GL_TEXTURE3);
+				glBindTexture(GL_TEXTURE_2D, m_rockTextureZ);
+				glUniform1i(glGetUniformLocation(shader->program, "rockTextureZ"), 3);
+					glBindVertexArray(m_vao);
+						glDrawArraysInstanced(GL_POINTS, 0, m_width * m_depth * 2, m_height - 1);
+					glBindVertexArray(0);
+}
+
+void RenderVolume::GenerateTextures()
+{
+	GenerateTexture(m_rockTextureX, "Assets/Textures/rock.jpg");
+	GenerateTexture(m_rockTextureY, "Assets/Textures/moss.jpg");
+	GenerateTexture(m_rockTextureZ, "Assets/Textures/rock2.jpg");
+}
+
+void RenderVolume::GenerateTexture(GLuint& textureID, const char* texturePath)
+{
+	int width;
+	int height;
+	unsigned char* image = SOIL_load_image(texturePath, &width, &height, nullptr, SOIL_LOAD_RGB);
+
+	glGenTextures(1, &textureID);
+	glBindTexture(GL_TEXTURE_2D, textureID);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, image);
+	SOIL_free_image_data(image);
+	glBindTexture(GL_TEXTURE_2D, 0);
 }
