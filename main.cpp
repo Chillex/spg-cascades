@@ -15,6 +15,9 @@
 #include "TextureBuffer3D.h"
 #include "TextureBuffer.h"
 #include "RenderVolume.h"
+#include "AdvancedQuad.h"
+
+void PrintDisplacementSettings(int initialSteps, int refinementSteps);
 
 int main()
 {
@@ -29,6 +32,19 @@ int main()
 	// input values
 	bool wireframeMode = false;
 	bool showDebugQuad = false;
+	bool renderDensity = true;
+	bool renderMarchingCubes = false;
+	bool renderDisplacementQuad = true;
+
+	// lighting
+	glm::vec3 lightPos(0.0f, 10.0f, 10.0f);
+
+	// displacement values
+	bool useDisplacement = true;
+	int displacementInitialSteps = 10;
+	int displacementRefinementSteps = 5;
+
+	PrintDisplacementSettings(displacementInitialSteps, displacementRefinementSteps);
 
 	GLfloat densityPoints[] = {
 		// Left bottom triangle
@@ -60,12 +76,17 @@ int main()
 	std::string debug3DTextureShaderKey = "debug-3dtexture";
 	std::string densityShaderKey = "density";
 	std::string marchingCubesShaderKey = "marching-cubes";
+	std::string displacementShaderKey = "displacement";
 	shaderLib.WatchShader(debug3DTextureShaderKey);
 	shaderLib.WatchShader(densityShaderKey);
 	shaderLib.WatchShader(marchingCubesShaderKey);
+	shaderLib.WatchShader(displacementShaderKey);
 
 	// compile all the shaders
 	shaderLib.Update();
+
+	// quad for displacement mapping test
+	AdvancedQuad displacementQuad(glm::vec3(0.0f), "Assets/Textures/rock2.jpg", "Assets/Textures/rock2_NRM.jpg", "Assets/Textures/rock2_DISP.jpg");
 
 	// debug for 3d texture
 	Quad debugQuad;
@@ -88,7 +109,7 @@ int main()
 	
 	// variables for density
 	GLfloat densityOffset = 0.0f;
-	GLfloat noiseStrength = 0.3f;
+	GLfloat noiseStrength = 0.0f;
 	GLfloat densitySpeed = 10.0f;
 
 	while(!window.ShouldClose())
@@ -124,9 +145,15 @@ int main()
 
 		// change density offset
 		if (input->IsKeyDown(GLFW_KEY_PAGE_UP))
+		{
 			densityOffset += 1.0f * densitySpeed;
+			renderDensity = true;
+		}
 		if (input->IsKeyDown(GLFW_KEY_PAGE_DOWN))
+		{
 			densityOffset -= 1.0f * densitySpeed;
+			renderDensity = true;
+		}
 
 		// change density speed
 		if (input->IsKeyPressed(GLFW_KEY_M))
@@ -142,18 +169,60 @@ int main()
 		{
 			if (noiseStrength < 2.0f)
 				noiseStrength += 0.05f;
+
+			renderDensity = true;
 		}
 		if (input->IsKeyPressed(GLFW_KEY_J))
 		{
 			if (noiseStrength > 0.0f)
 				noiseStrength -= 0.05f;
+
+			renderDensity = true;
 		}
 
 		if (input->IsKeyPressed(GLFW_KEY_R))
 			camera.PrintInfo();
 
+		// toggle rendering
 		if (input->IsKeyPressed(GLFW_KEY_G))
 			showDebugQuad = !showDebugQuad;
+
+		if (input->IsKeyPressed(GLFW_KEY_C))
+			useDisplacement = !useDisplacement;
+
+		if (input->IsKeyPressed(GLFW_KEY_M))
+			renderMarchingCubes = !renderMarchingCubes;
+
+		if (input->IsKeyPressed(GLFW_KEY_B))
+			renderDisplacementQuad = !renderDisplacementQuad;
+
+		// change displacement
+		if (input->IsKeyPressed(GLFW_KEY_7))
+		{
+			if (displacementInitialSteps > 0)
+				--displacementInitialSteps;
+
+			PrintDisplacementSettings(displacementInitialSteps, displacementRefinementSteps);
+		}
+		if (input->IsKeyPressed(GLFW_KEY_8))
+		{
+			++displacementInitialSteps;
+
+			PrintDisplacementSettings(displacementInitialSteps, displacementRefinementSteps);
+		}
+		if (input->IsKeyPressed(GLFW_KEY_9))
+		{
+			if (displacementRefinementSteps > 0)
+				--displacementRefinementSteps;
+
+			PrintDisplacementSettings(displacementInitialSteps, displacementRefinementSteps);
+		}
+		if (input->IsKeyPressed(GLFW_KEY_0))
+		{
+			++displacementRefinementSteps;
+
+			PrintDisplacementSettings(displacementInitialSteps, displacementRefinementSteps);
+		}
 
 		// camera movement
 		if (input->IsKeyDown(GLFW_KEY_W))
@@ -186,17 +255,22 @@ int main()
 		// rendering
 
 		// first renderpass -> render density texture
-		shaderLib.GetShader(densityShaderKey)->Use();
+		if(renderDensity)
+		{
+			shaderLib.GetShader(densityShaderKey)->Use();
 
-		glUniform1f(glGetUniformLocation(shaderLib.GetShader(densityShaderKey)->program, "offset"), densityOffset);
-		glUniform1f(glGetUniformLocation(shaderLib.GetShader(densityShaderKey)->program, "noiseStrength"), noiseStrength);
-		glUniform3f(glGetUniformLocation(shaderLib.GetShader(densityShaderKey)->program, "dimensions"), width, depth, height);
+			glUniform1f(glGetUniformLocation(shaderLib.GetShader(densityShaderKey)->program, "offset"), densityOffset);
+			glUniform1f(glGetUniformLocation(shaderLib.GetShader(densityShaderKey)->program, "noiseStrength"), noiseStrength);
+			glUniform3f(glGetUniformLocation(shaderLib.GetShader(densityShaderKey)->program, "dimensions"), width, depth, height);
 
-		densityTextureBuffer.Bind();
-		glBindVertexArray(densityVAO);
-		glDrawArraysInstanced(GL_TRIANGLES, 0, 6, densityTextureBuffer.GetLayerCount());
-		glBindVertexArray(0);
-		densityTextureBuffer.Unbind();
+			densityTextureBuffer.Bind();
+			glBindVertexArray(densityVAO);
+			glDrawArraysInstanced(GL_TRIANGLES, 0, 6, densityTextureBuffer.GetLayerCount());
+			glBindVertexArray(0);
+			densityTextureBuffer.Unbind();
+
+			renderDensity = false;
+		}
 
 		glViewport(0, 0, window.GetWidth(), window.GetHeight());
 
@@ -218,21 +292,50 @@ int main()
 			debugQuad.Render();
 		}
 
+		if (renderDisplacementQuad)
+		{
+			Shader* displacementShader = shaderLib.GetShader(displacementShaderKey);
+			displacementShader->Use();
+
+			glUniformMatrix4fv(glGetUniformLocation(displacementShader->program, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
+			glUniformMatrix4fv(glGetUniformLocation(displacementShader->program, "view"), 1, GL_FALSE, glm::value_ptr(viewMatrix));
+			glUniformMatrix4fv(glGetUniformLocation(displacementShader->program, "model"), 1, GL_FALSE, glm::value_ptr(displacementQuad.GetModelMatrix()));
+
+			glUniform3fv(glGetUniformLocation(displacementShader->program, "lightPos"), 1, &lightPos[0]);
+			glUniform3fv(glGetUniformLocation(displacementShader->program, "viewPos"), 1, &camera.GetPosition()[0]);
+
+			glUniform1i(glGetUniformLocation(displacementShader->program, "useDisplacement"), useDisplacement);
+			glUniform1i(glGetUniformLocation(displacementShader->program, "displacementInitialSteps"), displacementInitialSteps);
+			glUniform1i(glGetUniformLocation(displacementShader->program, "displacementRefinementSteps"), displacementRefinementSteps);
+
+			displacementQuad.Render(displacementShader);
+		}
+
 		if (wireframeMode)
 			glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 		
 		// render the render volume
-		glm::mat4 modelMatrix;
-		modelMatrix = glm::scale(modelMatrix, glm::vec3(10.0f, 10.0f, 10.0f));
+		if (renderMarchingCubes)
+		{
+			glm::mat4 modelMatrix;
+			modelMatrix = glm::scale(modelMatrix, glm::vec3(10.0f, 10.0f, 10.0f));
 
-		Shader* marchingCubesShader = shaderLib.GetShader(marchingCubesShaderKey);
-		marchingCubesShader->Use();
+			Shader* marchingCubesShader = shaderLib.GetShader(marchingCubesShaderKey);
+			marchingCubesShader->Use();
 
-		glUniformMatrix4fv(glGetUniformLocation(marchingCubesShader->program, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
-		glUniformMatrix4fv(glGetUniformLocation(marchingCubesShader->program, "view"), 1, GL_FALSE, glm::value_ptr(viewMatrix));
-		glUniformMatrix4fv(glGetUniformLocation(marchingCubesShader->program, "model"), 1, GL_FALSE, glm::value_ptr(modelMatrix));
+			glUniformMatrix4fv(glGetUniformLocation(marchingCubesShader->program, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
+			glUniformMatrix4fv(glGetUniformLocation(marchingCubesShader->program, "view"), 1, GL_FALSE, glm::value_ptr(viewMatrix));
+			glUniformMatrix4fv(glGetUniformLocation(marchingCubesShader->program, "model"), 1, GL_FALSE, glm::value_ptr(modelMatrix));
 
-		renderVolume.Render(densityTextureBuffer, marchingCubesShader);
+			glUniform3fv(glGetUniformLocation(marchingCubesShader->program, "cameraPos"), 1, glm::value_ptr(camera.GetPosition()));
+			glUniform3fv(glGetUniformLocation(marchingCubesShader->program, "lightPos"), 1, glm::value_ptr(lightPos));
+
+			glUniform1i(glGetUniformLocation(marchingCubesShader->program, "useDisplacement"), useDisplacement);
+			glUniform1i(glGetUniformLocation(marchingCubesShader->program, "displacementInitialSteps"), displacementInitialSteps);
+			glUniform1i(glGetUniformLocation(marchingCubesShader->program, "displacementRefinementSteps"), displacementRefinementSteps);
+
+			renderVolume.Render(densityTextureBuffer, marchingCubesShader);
+		}
 
 		// swap buffers
 		window.SwapBuffers();
@@ -244,4 +347,9 @@ int main()
 	delete input;
 	
 	return 0;
+}
+
+void PrintDisplacementSettings(int initialSteps, int refinementSteps)
+{
+	printf("Displacement Info:\n===================\nInitial Steps: %d\nRefinementSteps: %d\n\n", initialSteps, refinementSteps);
 }

@@ -30,6 +30,11 @@ private:
 	GLuint m_rockTextureY;
 	GLuint m_rockTextureZ;
 
+	GLuint m_rockTextureDisplacementX;
+	GLuint m_rockTextureDisplacementY;
+	GLuint m_rockTextureDisplacementZ;
+
+	void BindTextures(GLuint shaderProgram) const;
 	void GenerateTextures(void);
 	void GenerateTexture(GLuint& textureID, const char* texturePath);
 };

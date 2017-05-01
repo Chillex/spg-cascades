@@ -90,29 +90,52 @@ void RenderVolume::Render(const TextureBuffer3D& densityTexture, const Shader* s
 	GLuint yPosIndex = glGetUniformBlockIndex(shader->program, "yPosition");
 	glUniformBlockBinding(shader->program, yPosIndex, 1);
 	glBindBufferBase(GL_UNIFORM_BUFFER, 1, m_yPositionsUBO);
+	
+	BindTextures(shader->program);
+		glActiveTexture(GL_TEXTURE6);
+		densityTexture.BindTexture();
+			glUniform1i(glGetUniformLocation(shader->program, "densityTexture"), 6);
+			
+			glBindVertexArray(m_vao);
+				glDrawArraysInstanced(GL_POINTS, 0, m_width * m_depth * 2, m_height - 1);
+			glBindVertexArray(0);
 
-	glActiveTexture(GL_TEXTURE0);
-	densityTexture.BindTexture();
-	glUniform1i(glGetUniformLocation(shader->program, "densityTexture"), 0);
-		glActiveTexture(GL_TEXTURE1);
-		glBindTexture(GL_TEXTURE_2D, m_rockTextureX);
-		glUniform1i(glGetUniformLocation(shader->program, "rockTextureX"), 1);
-			glActiveTexture(GL_TEXTURE2);
-			glBindTexture(GL_TEXTURE_2D, m_rockTextureY);
-			glUniform1i(glGetUniformLocation(shader->program, "rockTextureY"), 2);
-				glActiveTexture(GL_TEXTURE3);
-				glBindTexture(GL_TEXTURE_2D, m_rockTextureZ);
-				glUniform1i(glGetUniformLocation(shader->program, "rockTextureZ"), 3);
-					glBindVertexArray(m_vao);
-						glDrawArraysInstanced(GL_POINTS, 0, m_width * m_depth * 2, m_height - 1);
-					glBindVertexArray(0);
+	glBindTexture(GL_TEXTURE_2D, 0);
 }
 
-void RenderVolume::GenerateTextures()
+void RenderVolume::BindTextures(GLuint shaderProgram) const
 {
-	GenerateTexture(m_rockTextureX, "Assets/Textures/rock.jpg");
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, m_rockTextureX);
+	glUniform1i(glGetUniformLocation(shaderProgram, "rockTextureX"), 0);
+	glActiveTexture(GL_TEXTURE1);
+	glBindTexture(GL_TEXTURE_2D, m_rockTextureY);
+	glUniform1i(glGetUniformLocation(shaderProgram, "rockTextureY"), 1);
+	glActiveTexture(GL_TEXTURE2);
+	glBindTexture(GL_TEXTURE_2D, m_rockTextureZ);
+	glUniform1i(glGetUniformLocation(shaderProgram, "rockTextureZ"), 2);
+
+	glActiveTexture(GL_TEXTURE3);
+	glBindTexture(GL_TEXTURE_2D, m_rockTextureDisplacementX);
+	glUniform1i(glGetUniformLocation(shaderProgram, "rockTextureDisplacementX"), 3);
+	glActiveTexture(GL_TEXTURE4);
+	glBindTexture(GL_TEXTURE_2D, m_rockTextureDisplacementY);
+	glUniform1i(glGetUniformLocation(shaderProgram, "rockTextureDisplacementY"), 4);
+	glActiveTexture(GL_TEXTURE5);
+	glBindTexture(GL_TEXTURE_2D, m_rockTextureDisplacementZ);
+	glUniform1i(glGetUniformLocation(shaderProgram, "rockTextureDisplacementZ"), 5);
+}
+
+void RenderVolume::GenerateTextures(void)
+{
+	// diffuse
+	GenerateTexture(m_rockTextureX, "Assets/Textures/rock2.jpg");
 	GenerateTexture(m_rockTextureY, "Assets/Textures/moss.jpg");
 	GenerateTexture(m_rockTextureZ, "Assets/Textures/rock2.jpg");
+	// displacement
+	GenerateTexture(m_rockTextureDisplacementX, "Assets/Textures/rock2_DISP.jpg");
+	GenerateTexture(m_rockTextureDisplacementY, "Assets/Textures/moss_DISP.jpg");
+	GenerateTexture(m_rockTextureDisplacementZ, "Assets/Textures/rock2_DISP.jpg");
 }
 
 void RenderVolume::GenerateTexture(GLuint& textureID, const char* texturePath)
@@ -125,10 +148,11 @@ void RenderVolume::GenerateTexture(GLuint& textureID, const char* texturePath)
 	glBindTexture(GL_TEXTURE_2D, textureID);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, image);
+	glGenerateMipmap(GL_TEXTURE_2D);
 	SOIL_free_image_data(image);
 	glBindTexture(GL_TEXTURE_2D, 0);
 }

@@ -32,13 +32,18 @@ in VS_OUT {
 } geo_in[];
 
 out GS_OUT {
-	vec3 normal;
+  vec3 normal;
+  // vec3 tangent;
+	// vec3 bitangent;
   vec3 worldSpaceCoordinates;
+	vec3 cameraPosition;
 } geo_out;
 
 uniform mat4 model;
 uniform mat4 view;
 uniform mat4 projection;
+
+uniform vec3 cameraPos;
 
 vec3 GetNormal(vec3 p1, vec3 p2, vec3 p3)
 {
@@ -53,6 +58,18 @@ vec3 GetNormal(vec3 p1, vec3 p2, vec3 p3)
 
 	return normalize(normal);
 }
+
+// vec3 GetTangent(vec3 p1, vec3 p2, vec3 p3)
+// {
+//   vec3 edge1 = p2 - p1;
+//   vec3 edge2 = p3 - p1;
+//   vec2 deltaUV1
+// }
+//
+// vec3 GetBitangent(vec3 p1, vec3 p2, vec3 p3)
+// {
+//
+// }
 
 vec3 InterpolateVertex(float isoLevel, vec3 vertex1, float density1, vec3 vertex2, float density2)
 {
@@ -80,20 +97,31 @@ void main() {
     vec3 p1 = GetVertexPositionOnEdge(caseToTriangles[lutPosition + i], geo_in[0].cornerCoordinates, geo_in[0].densities).xzy;
 		vec3 p2 = GetVertexPositionOnEdge(caseToTriangles[lutPosition + i + 1], geo_in[0].cornerCoordinates, geo_in[0].densities).xzy;
 		vec3 p3 = GetVertexPositionOnEdge(caseToTriangles[lutPosition + i + 2], geo_in[0].cornerCoordinates, geo_in[0].densities).xzy;
-		vec3 normal = GetNormal(p1, p2, p3);
+    vec3 normal = GetNormal(p1, p2, p3);
+    // vec3 tangent = GetTangent(p1, p2, p3);
+		// vec3 bitangent = GetBitangent(p1, p2, p3);
 
-		geo_out.normal = normal;
+    geo_out.normal = normal;
+    // geo_out.tangent = tangent;
+		// geo_out.bitangent = bitangent;
     geo_out.worldSpaceCoordinates = p1;
+    geo_out.cameraPosition = cameraPos;
 		gl_Position = projection * view * model * vec4(p1, 1.0f);
     EmitVertex();
 
 		geo_out.normal = normal;
+    // geo_out.tangent = tangent;
+		// geo_out.bitangent = bitangent;
     geo_out.worldSpaceCoordinates = p2;
+    geo_out.cameraPosition = cameraPos;
     gl_Position = projection * view * model * vec4(p2, 1.0f);
     EmitVertex();
 
 		geo_out.normal = normal;
+    // geo_out.tangent = tangent;
+		// geo_out.bitangent = bitangent;
     geo_out.worldSpaceCoordinates = p3;
+    geo_out.cameraPosition = cameraPos;
     gl_Position = projection * view * model * vec4(p3, 1.0f);
     EmitVertex();
 

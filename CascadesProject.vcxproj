@@ -127,6 +127,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="AdvancedQuad.cpp" />
     <ClCompile Include="FPSCamera.cpp" />
     <ClCompile Include="Input.cpp" />
     <ClCompile Include="main.cpp" />
@@ -140,6 +141,7 @@
     <ClCompile Include="Window.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="AdvancedQuad.h" />
     <ClInclude Include="Color.h" />
     <ClInclude Include="FPSCamera.h" />
     <ClInclude Include="Input.h" />
