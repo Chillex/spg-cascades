@@ -91,6 +91,9 @@ AdvancedQuad::AdvancedQuad(glm::vec3 position, const char* diffusePath, const ch
 	glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, 14 * sizeof(GLfloat), reinterpret_cast<GLvoid*>(8 * sizeof(GLfloat)));
 	glEnableVertexAttribArray(4);
 	glVertexAttribPointer(4, 3, GL_FLOAT, GL_FALSE, 14 * sizeof(GLfloat), reinterpret_cast<GLvoid*>(11 * sizeof(GLfloat)));
+
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glBindVertexArray(0);
 }
 
 AdvancedQuad::~AdvancedQuad()

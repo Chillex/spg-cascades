@@ -16,6 +16,7 @@
 #include "TextureBuffer.h"
 #include "RenderVolume.h"
 #include "AdvancedQuad.h"
+#include "ParticleSystem.h"
 
 void PrintDisplacementSettings(int initialSteps, int refinementSteps);
 
@@ -33,14 +34,15 @@ int main()
 	bool wireframeMode = false;
 	bool showDebugQuad = false;
 	bool renderDensity = true;
-	bool renderMarchingCubes = false;
-	bool renderDisplacementQuad = true;
+	bool renderMarchingCubes = true;
+	bool renderDisplacementQuad = false;
+	bool renderParticleSystem = true;
 
 	// lighting
 	glm::vec3 lightPos(0.0f, 10.0f, 10.0f);
 
 	// displacement values
-	bool useDisplacement = true;
+	bool useDisplacement = false;
 	int displacementInitialSteps = 10;
 	int displacementRefinementSteps = 5;
 
@@ -51,10 +53,10 @@ int main()
 		-1.0f,  1.0f,
 		-1.0f, -1.0f,
 		 1.0f, -1.0f,
-		// Right top triangle
-		 1.0f, -1.0f,
-		 1.0f,  1.0f,
-		-1.0f,  1.0f
+		 // Right top triangle
+		  1.0f, -1.0f,
+		  1.0f,  1.0f,
+		 -1.0f,  1.0f
 	};
 
 	GLuint densityVBO, densityVAO;
@@ -72,15 +74,30 @@ int main()
 	// the shader library will watch the given path with a thread
 	// and hot reload all shaders added to it with "WatchShader()"
 	ShaderLibrary shaderLib(shaderPath);
-	
+
+	// debugging shaders
 	std::string debug3DTextureShaderKey = "debug-3dtexture";
-	std::string densityShaderKey = "density";
-	std::string marchingCubesShaderKey = "marching-cubes";
-	std::string displacementShaderKey = "displacement";
 	shaderLib.WatchShader(debug3DTextureShaderKey);
+
+	// marching cubes shaders
+	std::string densityShaderKey = "density";
 	shaderLib.WatchShader(densityShaderKey);
+	std::string marchingCubesShaderKey = "marching-cubes";
 	shaderLib.WatchShader(marchingCubesShaderKey);
+	std::string geometryGeneratorKey = "geometry-generator";
+	shaderLib.WatchShader(geometryGeneratorKey, { "outPosition", "outNormal" });
+	std::string geometryRendererKey = "geometry-renderer";
+	shaderLib.WatchShader(geometryRendererKey);
+
+	// displacement shaders
+	std::string displacementShaderKey = "displacement";
 	shaderLib.WatchShader(displacementShaderKey);
+
+	// particle shaders
+	std::string particleGeneratorKey = "particle-generator";
+	shaderLib.WatchShader(particleGeneratorKey, { "outPosition", "outVelocity", "outLifetime", "outType" });
+	std::string particleRendererKey = "particle-renderer";
+	shaderLib.WatchShader(particleRendererKey);
 
 	// compile all the shaders
 	shaderLib.Update();
@@ -111,6 +128,9 @@ int main()
 	GLfloat densityOffset = 0.0f;
 	GLfloat noiseStrength = 0.0f;
 	GLfloat densitySpeed = 10.0f;
+
+	// particle system
+	ParticleSystem particleSystem(glm::vec3(0.0f), 0.2f);
 
 	while(!window.ShouldClose())
 	{
@@ -270,9 +290,29 @@ int main()
 			densityTextureBuffer.Unbind();
 
 			renderDensity = false;
+
+			// generate geometry once
+			renderVolume.GenerateGeometry(densityTextureBuffer, shaderLib.GetShader(geometryGeneratorKey));
 		}
 
 		glViewport(0, 0, window.GetWidth(), window.GetHeight());
+
+		if (renderParticleSystem)
+		{
+			// update particles
+			particleSystem.UpdateParticles(shaderLib.GetShader(particleGeneratorKey), deltaTime);
+
+			// render particles
+			Shader* particleRenderShader = shaderLib.GetShader(particleRendererKey);
+
+			particleRenderShader->Use();
+
+			glm::mat4 modelMatrix;
+			glUniformMatrix4fv(glGetUniformLocation(particleRenderShader->program, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
+			glUniformMatrix4fv(glGetUniformLocation(particleRenderShader->program, "view"), 1, GL_FALSE, glm::value_ptr(viewMatrix));
+			glUniformMatrix4fv(glGetUniformLocation(particleRenderShader->program, "model"), 1, GL_FALSE, glm::value_ptr(modelMatrix));
+			particleSystem.Render(particleRenderShader);
+		}
 
 		// render debug quad
 		if (showDebugQuad)
@@ -317,24 +357,35 @@ int main()
 		// render the render volume
 		if (renderMarchingCubes)
 		{
+			//glm::mat4 modelMatrix;
+			//modelMatrix = glm::scale(modelMatrix, glm::vec3(10.0f, 10.0f, 10.0f));
+
+			//Shader* marchingCubesShader = shaderLib.GetShader(marchingCubesShaderKey);
+			//marchingCubesShader->Use();
+
+			//glUniformMatrix4fv(glGetUniformLocation(marchingCubesShader->program, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
+			//glUniformMatrix4fv(glGetUniformLocation(marchingCubesShader->program, "view"), 1, GL_FALSE, glm::value_ptr(viewMatrix));
+			//glUniformMatrix4fv(glGetUniformLocation(marchingCubesShader->program, "model"), 1, GL_FALSE, glm::value_ptr(modelMatrix));
+
+			//glUniform3fv(glGetUniformLocation(marchingCubesShader->program, "cameraPos"), 1, glm::value_ptr(camera.GetPosition()));
+			//glUniform3fv(glGetUniformLocation(marchingCubesShader->program, "lightPos"), 1, glm::value_ptr(lightPos));
+
+			//renderVolume.Render(densityTextureBuffer, marchingCubesShader);
+
 			glm::mat4 modelMatrix;
 			modelMatrix = glm::scale(modelMatrix, glm::vec3(10.0f, 10.0f, 10.0f));
 
-			Shader* marchingCubesShader = shaderLib.GetShader(marchingCubesShaderKey);
-			marchingCubesShader->Use();
+			Shader* geometryRendererShader = shaderLib.GetShader(geometryRendererKey);
+			geometryRendererShader->Use();
 
-			glUniformMatrix4fv(glGetUniformLocation(marchingCubesShader->program, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
-			glUniformMatrix4fv(glGetUniformLocation(marchingCubesShader->program, "view"), 1, GL_FALSE, glm::value_ptr(viewMatrix));
-			glUniformMatrix4fv(glGetUniformLocation(marchingCubesShader->program, "model"), 1, GL_FALSE, glm::value_ptr(modelMatrix));
+			glUniformMatrix4fv(glGetUniformLocation(geometryRendererShader->program, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
+			glUniformMatrix4fv(glGetUniformLocation(geometryRendererShader->program, "view"), 1, GL_FALSE, glm::value_ptr(viewMatrix));
+			glUniformMatrix4fv(glGetUniformLocation(geometryRendererShader->program, "model"), 1, GL_FALSE, glm::value_ptr(modelMatrix));
 
-			glUniform3fv(glGetUniformLocation(marchingCubesShader->program, "cameraPos"), 1, glm::value_ptr(camera.GetPosition()));
-			glUniform3fv(glGetUniformLocation(marchingCubesShader->program, "lightPos"), 1, glm::value_ptr(lightPos));
+			glUniform3fv(glGetUniformLocation(geometryRendererShader->program, "cameraPos"), 1, glm::value_ptr(camera.GetPosition()));
+			glUniform3fv(glGetUniformLocation(geometryRendererShader->program, "lightPos"), 1, glm::value_ptr(lightPos));
 
-			glUniform1i(glGetUniformLocation(marchingCubesShader->program, "useDisplacement"), useDisplacement);
-			glUniform1i(glGetUniformLocation(marchingCubesShader->program, "displacementInitialSteps"), displacementInitialSteps);
-			glUniform1i(glGetUniformLocation(marchingCubesShader->program, "displacementRefinementSteps"), displacementRefinementSteps);
-
-			renderVolume.Render(densityTextureBuffer, marchingCubesShader);
+			renderVolume.Render(geometryRendererShader);
 		}
 
 		// swap buffers

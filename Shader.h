@@ -11,8 +11,20 @@
 class Shader
 {
 public:
-	Shader(std::string vertexPath, std::string fragmentPath);
+	struct ShaderType
+	{
+		enum Enum
+		{
+			Vertex = 0,
+			Geometry = 1,
+			Fragment = 2
+		};
+	};
+
+	Shader(std::string vertexPath, std::string secondShaderPath, ShaderType::Enum secondShaderType);
+	Shader(std::string vertexPath, std::string secondShaderPath, ShaderType::Enum secondShaderType, const GLchar** feedbackVaryings, const GLuint feedbackCount);
 	Shader(std::string vertexPath, std::string fragmentPath, std::string geometryPath);
+	Shader(std::string vertexPath, std::string fragmentPath, std::string geometryPath, const GLchar** feedbackVaryings, const GLuint feedbackCount);
 
 	~Shader();
 

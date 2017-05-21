@@ -13,6 +13,8 @@ public:
 	~RenderVolume();
 
 	void Render(const TextureBuffer3D& densityTexture, const Shader* shader) const;
+	void GenerateGeometry(const TextureBuffer3D& densityTexture, Shader* shader);
+	void Render(const Shader* shader) const;
 
 private:
 	GLuint m_width;
@@ -25,6 +27,11 @@ private:
 	GLuint m_polyCountLutUBO;
 	GLuint m_triangeConnectionLutUBO;
 	GLuint m_yPositionsUBO;
+
+	GLuint m_geometryVAO;
+	GLuint m_geometryTBO;
+	GLuint m_query;
+	GLuint m_primitivesCount;
 
 	GLuint m_rockTextureX;
 	GLuint m_rockTextureY;

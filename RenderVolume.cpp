@@ -66,6 +66,21 @@ RenderVolume::RenderVolume(GLuint width, GLuint height, GLuint depth)
 	glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
 	GenerateTextures();
+
+	// create feedback VAO und TBO
+	glGenVertexArrays(1, &m_geometryVAO);
+	glGenBuffers(1, &m_geometryTBO);
+	glBindVertexArray(m_geometryVAO);
+		glBindBuffer(GL_ARRAY_BUFFER, m_geometryTBO);
+			glBufferData(GL_ARRAY_BUFFER, 400000 * 6 * sizeof(GLfloat), nullptr, GL_DYNAMIC_READ);
+			glEnableVertexAttribArray(0);
+			glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), reinterpret_cast<GLvoid*>(0));
+			glEnableVertexAttribArray(1);
+			glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), reinterpret_cast<GLvoid*>(3 * sizeof(GLfloat)));
+		glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glBindVertexArray(0);
+
+	glGenQueries(1, &m_query);
 }
 
 RenderVolume::~RenderVolume()
@@ -80,9 +95,6 @@ void RenderVolume::Render(const TextureBuffer3D& densityTexture, const Shader* s
 	glUniform3f(glGetUniformLocation(shader->program, "invertedVoxelDimension"), 1.0f / static_cast<GLfloat>(m_width - 1), 1.0f / static_cast<GLfloat>(m_height - 1), 1.0f / static_cast<GLfloat>(m_depth - 1));
 
 	// LUTs
-	//glUniformBlockBinding(shader->program, glGetUniformBlockIndex(shader->program, "lut_poly"), 0);
-	//glBindBufferBase(GL_UNIFORM_BUFFER, 0, m_polyCountLutUBO);
-
 	GLuint triLutIndex = glGetUniformBlockIndex(shader->program, "triangleConnectionLUT");
 	glUniformBlockBinding(shader->program, triLutIndex, 0);
 	glBindBufferBase(GL_UNIFORM_BUFFER, 0, m_triangeConnectionLutUBO);
@@ -92,14 +104,61 @@ void RenderVolume::Render(const TextureBuffer3D& densityTexture, const Shader* s
 	glBindBufferBase(GL_UNIFORM_BUFFER, 1, m_yPositionsUBO);
 	
 	BindTextures(shader->program);
-		glActiveTexture(GL_TEXTURE6);
+		glActiveTexture(GL_TEXTURE3);
 		densityTexture.BindTexture();
-			glUniform1i(glGetUniformLocation(shader->program, "densityTexture"), 6);
+			glUniform1i(glGetUniformLocation(shader->program, "densityTexture"), 3);
 			
 			glBindVertexArray(m_vao);
 				glDrawArraysInstanced(GL_POINTS, 0, m_width * m_depth * 2, m_height - 1);
 			glBindVertexArray(0);
 
+	glBindTexture(GL_TEXTURE_2D, 0);
+}
+
+void RenderVolume::GenerateGeometry(const TextureBuffer3D& densityTexture, Shader* shader)
+{
+	shader->Use();
+
+	// shader uniforms
+	glUniform3f(glGetUniformLocation(shader->program, "invertedVoxelDimension"), 1.0f / static_cast<GLfloat>(m_width - 1), 1.0f / static_cast<GLfloat>(m_height - 1), 1.0f / static_cast<GLfloat>(m_depth - 1));
+
+	// LUTs
+	GLuint triLutIndex = glGetUniformBlockIndex(shader->program, "triangleConnectionLUT");
+	glUniformBlockBinding(shader->program, triLutIndex, 0);
+	glBindBufferBase(GL_UNIFORM_BUFFER, 0, m_triangeConnectionLutUBO);
+
+	GLuint yPosIndex = glGetUniformBlockIndex(shader->program, "yPosition");
+	glUniformBlockBinding(shader->program, yPosIndex, 1);
+	glBindBufferBase(GL_UNIFORM_BUFFER, 1, m_yPositionsUBO);
+	
+	glEnable(GL_RASTERIZER_DISCARD);
+		glBindBufferBase(GL_TRANSFORM_FEEDBACK_BUFFER, 0, m_geometryTBO);
+			glActiveTexture(GL_TEXTURE0);
+			densityTexture.BindTexture();
+			glUniform1i(glGetUniformLocation(shader->program, "densityTexture"), 0);
+				glBindVertexArray(m_vao);
+					glBeginQuery(GL_TRANSFORM_FEEDBACK_PRIMITIVES_WRITTEN, m_query);
+						glBeginTransformFeedback(GL_TRIANGLES);
+							glDrawArraysInstanced(GL_POINTS, 0, m_width * m_depth * 2, m_height - 1);
+						glEndTransformFeedback();
+					glEndQuery(GL_TRANSFORM_FEEDBACK_PRIMITIVES_WRITTEN);
+				glBindVertexArray(0);
+			glBindTexture(GL_TEXTURE_2D, 0);
+		glBindBufferBase(GL_TRANSFORM_FEEDBACK_BUFFER, 0, 0);
+	glDisable(GL_RASTERIZER_DISCARD);
+
+	glFlush();
+
+	glGetQueryObjectuiv(m_query, GL_QUERY_RESULT, &m_primitivesCount);
+	printf("Generated %u Primitives.\n", m_primitivesCount);
+}
+
+void RenderVolume::Render(const Shader* shader) const
+{
+	BindTextures(shader->program);
+		glBindVertexArray(m_geometryVAO);
+			glDrawArrays(GL_TRIANGLES, 0, m_primitivesCount * 3);
+		glBindVertexArray(0);
 	glBindTexture(GL_TEXTURE_2D, 0);
 }
 
@@ -114,16 +173,6 @@ void RenderVolume::BindTextures(GLuint shaderProgram) const
 	glActiveTexture(GL_TEXTURE2);
 	glBindTexture(GL_TEXTURE_2D, m_rockTextureZ);
 	glUniform1i(glGetUniformLocation(shaderProgram, "rockTextureZ"), 2);
-
-	glActiveTexture(GL_TEXTURE3);
-	glBindTexture(GL_TEXTURE_2D, m_rockTextureDisplacementX);
-	glUniform1i(glGetUniformLocation(shaderProgram, "rockTextureDisplacementX"), 3);
-	glActiveTexture(GL_TEXTURE4);
-	glBindTexture(GL_TEXTURE_2D, m_rockTextureDisplacementY);
-	glUniform1i(glGetUniformLocation(shaderProgram, "rockTextureDisplacementY"), 4);
-	glActiveTexture(GL_TEXTURE5);
-	glBindTexture(GL_TEXTURE_2D, m_rockTextureDisplacementZ);
-	glUniform1i(glGetUniformLocation(shaderProgram, "rockTextureDisplacementZ"), 5);
 }
 
 void RenderVolume::GenerateTextures(void)
@@ -132,10 +181,6 @@ void RenderVolume::GenerateTextures(void)
 	GenerateTexture(m_rockTextureX, "Assets/Textures/rock2.jpg");
 	GenerateTexture(m_rockTextureY, "Assets/Textures/moss.jpg");
 	GenerateTexture(m_rockTextureZ, "Assets/Textures/rock2.jpg");
-	// displacement
-	GenerateTexture(m_rockTextureDisplacementX, "Assets/Textures/rock2_DISP.jpg");
-	GenerateTexture(m_rockTextureDisplacementY, "Assets/Textures/moss_DISP.jpg");
-	GenerateTexture(m_rockTextureDisplacementZ, "Assets/Textures/rock2_DISP.jpg");
 }
 
 void RenderVolume::GenerateTexture(GLuint& textureID, const char* texturePath)

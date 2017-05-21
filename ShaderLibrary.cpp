@@ -33,7 +33,7 @@ void ShaderLibrary::WatchShader(std::string id)
 	};
 
 	// get the highest last modified date of the shaders
-	std::experimental::filesystem::file_time_type highistLastMadified;
+	std::experimental::filesystem::file_time_type highestLastMadified;
 	for (unsigned int i = 0u; i < 3; ++i)
 	{
 		if (std::experimental::filesystem::exists(shaderFilePaths[i]))
@@ -41,14 +41,21 @@ void ShaderLibrary::WatchShader(std::string id)
 			std::experimental::filesystem::file_time_type modified = std::experimental::filesystem::last_write_time(shaderFilePaths[i]);
 			if (m_lastModifiedDates[id] < modified)
 			{
-				if (highistLastMadified < modified)
-					highistLastMadified = modified;
+				if (highestLastMadified < modified)
+					highestLastMadified = modified;
 			}
 		}
 	}
 
-	m_lastModifiedDates[id] = highistLastMadified;
+	m_lastModifiedDates[id] = highestLastMadified;
 	m_dirtyShaders[id] = true;
+}
+
+void ShaderLibrary::WatchShader(std::string id, const std::vector<const GLchar*>& feedbackVaryings)
+{
+	m_shaderFeedbackVaryings[id] = feedbackVaryings;
+
+	WatchShader(id);
 }
 
 void ShaderLibrary::AddShader(std::string id)
@@ -59,26 +66,47 @@ void ShaderLibrary::AddShader(std::string id)
 	std::string fragementPath = (m_path / (id + ".frag")).string();
 	std::string geometryPath = (m_path / (id + ".geom")).string();
 
-	if(std::experimental::filesystem::exists(geometryPath))
+	bool fragmentExists = std::experimental::filesystem::exists(fragementPath);
+	bool geometryExists = std::experimental::filesystem::exists(geometryPath);
+
+	if(geometryExists && fragmentExists)
 	{
 		AddShader(id, vertexPath, fragementPath, geometryPath);
 	}
-	else
+	else if(geometryExists)
 	{
-		AddShader(id, vertexPath, fragementPath);
+		AddShader(id, vertexPath, geometryPath, Shader::ShaderType::Geometry);
+	}
+	else if(fragmentExists)
+	{
+		AddShader(id, vertexPath, fragementPath, Shader::ShaderType::Fragment);
 	}
 }
 
-void ShaderLibrary::AddShader(std::string id, const std::string vertexPath, const std::string fragmentPath)
+void ShaderLibrary::AddShader(std::string id, const std::string vertexPath, const std::string secondPath, Shader::ShaderType::Enum secondShaderType)
 {
 	// create new shader and add it to the list
-	m_loadedShaders[id] = new Shader(vertexPath, fragmentPath);
+	if(m_shaderFeedbackVaryings.find(id) != m_shaderFeedbackVaryings.end())
+	{
+		m_loadedShaders[id] = new Shader(vertexPath, secondPath, secondShaderType, &m_shaderFeedbackVaryings[id][0], m_shaderFeedbackVaryings[id].size());
+	}
+	else
+	{
+		m_loadedShaders[id] = new Shader(vertexPath, secondPath, secondShaderType);
+	}
 }
 
 void ShaderLibrary::AddShader(std::string id, const std::string vertexPath, const std::string fragmentPath, const std::string geometryPath)
 {
 	// create new shader and add it to the list
-	m_loadedShaders[id] = new Shader(vertexPath, fragmentPath, geometryPath);
+	if (m_shaderFeedbackVaryings.find(id) != m_shaderFeedbackVaryings.end())
+	{
+		m_loadedShaders[id] = new Shader(vertexPath, fragmentPath, geometryPath, &m_shaderFeedbackVaryings[id][0], m_shaderFeedbackVaryings[id].size());
+	}
+	else
+	{
+		m_loadedShaders[id] = new Shader(vertexPath, fragmentPath, geometryPath);
+	}
 }
 
 Shader* ShaderLibrary::GetShader(std::string id) const
