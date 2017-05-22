@@ -26,7 +26,7 @@ vec2 Displacement(vec2 uv, vec3 eyeVec, sampler2D displacementTex, int initialSt
 
   // calculate uv delta and set starting height
 	vec2 newUVs = uv;
-	vec2 deltaUV = -eyeVec.xy * 0.1f / float(initialSteps);
+	vec2 deltaUV = -eyeVec.xy * 2.5f * 0.035f / float(initialSteps);
 	float searchHeight = 1.0f;
 
   // start sampling with initial steps
@@ -53,7 +53,7 @@ vec2 Displacement(vec2 uv, vec3 eyeVec, sampler2D displacementTex, int initialSt
 
   // calculations before starting the refinement
 	vec2 uvsBeforeRefinement = newUVs;
-	searchHeight = hitHeight + stepSize - 0.0085f; // extra offset helpts reduce grey artifacts
+	searchHeight = hitHeight + stepSize - 0.02f; // extra offset helpts reduce grey artifacts
 	float heightBeforeRefinement = searchHeight;
 
   // scale delta UV with refinement size

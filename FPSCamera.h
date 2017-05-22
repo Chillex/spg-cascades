@@ -28,6 +28,7 @@ public:
 	glm::mat4 GetProjectionMatrix(GLfloat width, GLfloat height) const;
 	glm::mat4 GetViewMatrix(void) const;
 	glm::vec3 GetPosition(void) const;
+	glm::vec3 GetDirection(void) const;
 	glm::quat GetRotation(void) const;
 
 	void PrintInfo(void) const;

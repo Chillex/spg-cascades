@@ -128,33 +128,45 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="AdvancedQuad.cpp" />
+    <ClCompile Include="BoundingBox.cpp" />
     <ClCompile Include="FPSCamera.cpp" />
     <ClCompile Include="Input.cpp" />
+    <ClCompile Include="KDTreeController.cpp" />
+    <ClCompile Include="KDTreeNode.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="ParticleSystem.cpp" />
     <ClCompile Include="Quad.cpp" />
+    <ClCompile Include="Ray.cpp" />
     <ClCompile Include="RenderVolume.cpp" />
     <ClCompile Include="Shader.cpp" />
     <ClCompile Include="ShaderLibrary.cpp" />
     <ClCompile Include="TextureBuffer3D.cpp" />
     <ClCompile Include="Texture2D.cpp" />
     <ClCompile Include="TextureBuffer.cpp" />
+    <ClCompile Include="Triangle.cpp" />
     <ClCompile Include="Window.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="AdvancedQuad.h" />
+    <ClInclude Include="BoundingBox.h" />
     <ClInclude Include="Color.h" />
     <ClInclude Include="FPSCamera.h" />
     <ClInclude Include="Input.h" />
+    <ClInclude Include="Intersection.h" />
+    <ClInclude Include="KDTreeController.h" />
+    <ClInclude Include="KDTreeNode.h" />
     <ClInclude Include="LUT.h" />
+    <ClInclude Include="MathUtil.h" />
     <ClInclude Include="ParticleSystem.h" />
     <ClInclude Include="Quad.h" />
+    <ClInclude Include="Ray.h" />
     <ClInclude Include="RenderVolume.h" />
     <ClInclude Include="Shader.h" />
     <ClInclude Include="ShaderLibrary.h" />
     <ClInclude Include="TextureBuffer3D.h" />
     <ClInclude Include="Texture2D.h" />
     <ClInclude Include="TextureBuffer.h" />
+    <ClInclude Include="Triangle.h" />
     <ClInclude Include="Window.h" />
   </ItemGroup>
   <ItemGroup>

@@ -1,35 +1,28 @@
-#ifndef BOUNDING_BOX_H
-#define BOUNDING_BOX_H
+﻿#ifndef _BOUNDING_BOX_H_
+#define _BOUNDING_BOX_H_
 
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtc/type_ptr.hpp>
+#include <glm/detail/type_vec3.hpp>
 #include <GL/glew.h>
 
-#include "Shader.h"
-
-class Ray;
+class Shader;
 
 class BoundingBox
 {
 public:
 	BoundingBox();
-	BoundingBox(glm::vec3 min, glm::vec3 max);
-	~BoundingBox();
+	BoundingBox(glm::vec3 minP, glm::vec3 maxP);
 
-	void Expand(BoundingBox* other);
-	int GetLongestAxis() const;
+	uint32_t GetLongestAxis(void) const;
 	void Draw(Shader* shader) const;
 
-	bool Intersects(const Ray& ray, float t0, float t1);
-
+	glm::vec3 mMin, mMax;
 	bool highlight;
 
-protected:
-	GLuint VAO;
-	GLuint VBO;
+private:
+	GLuint m_vao;
+	GLuint m_vbo;
 
-	glm::vec3 bounds[2];
+	void CreateVAO(void);
 };
 
 #endif

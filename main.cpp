@@ -17,8 +17,11 @@
 #include "RenderVolume.h"
 #include "AdvancedQuad.h"
 #include "ParticleSystem.h"
+#include "KDTreeController.h"
+#include "Ray.h"
 
 void PrintDisplacementSettings(int initialSteps, int refinementSteps);
+void RenderCrosshair(Shader* shader, glm::vec3 color, GLuint width, GLuint height);
 
 int main()
 {
@@ -37,6 +40,7 @@ int main()
 	bool renderMarchingCubes = true;
 	bool renderDisplacementQuad = false;
 	bool renderParticleSystem = true;
+	bool renderKDTree = false;
 
 	// lighting
 	glm::vec3 lightPos(0.0f, 10.0f, 10.0f);
@@ -78,12 +82,12 @@ int main()
 	// debugging shaders
 	std::string debug3DTextureShaderKey = "debug-3dtexture";
 	shaderLib.WatchShader(debug3DTextureShaderKey);
+	std::string standardShaderKey = "standard";
+	shaderLib.WatchShader(standardShaderKey);
 
 	// marching cubes shaders
 	std::string densityShaderKey = "density";
 	shaderLib.WatchShader(densityShaderKey);
-	std::string marchingCubesShaderKey = "marching-cubes";
-	shaderLib.WatchShader(marchingCubesShaderKey);
 	std::string geometryGeneratorKey = "geometry-generator";
 	shaderLib.WatchShader(geometryGeneratorKey, { "outPosition", "outNormal" });
 	std::string geometryRendererKey = "geometry-renderer";
@@ -98,6 +102,10 @@ int main()
 	shaderLib.WatchShader(particleGeneratorKey, { "outPosition", "outVelocity", "outLifetime", "outType" });
 	std::string particleRendererKey = "particle-renderer";
 	shaderLib.WatchShader(particleRendererKey);
+
+	// hud shader
+	std::string hudKey = "hud";
+	shaderLib.WatchShader(hudKey);
 
 	// compile all the shaders
 	shaderLib.Update();
@@ -119,7 +127,6 @@ int main()
 	GLuint width = 96;
 	GLuint height = 256;
 	GLuint depth = 96;
-	//TextureBuffer densityTextureBuffer(96, 96);
 	TextureBuffer3D densityTextureBuffer(width, depth, height);
 	// create render volume
 	RenderVolume renderVolume(width, height, depth);
@@ -130,7 +137,10 @@ int main()
 	GLfloat densitySpeed = 10.0f;
 
 	// particle system
-	ParticleSystem particleSystem(glm::vec3(0.0f), 0.2f);
+	std::vector<ParticleSystem> particleSystems;
+
+	// last mouse state
+	int lastMouseState = GLFW_RELEASE;
 
 	while(!window.ShouldClose())
 	{
@@ -176,9 +186,9 @@ int main()
 		}
 
 		// change density speed
-		if (input->IsKeyPressed(GLFW_KEY_M))
+		if (input->IsKeyPressed(GLFW_KEY_O))
 			++densitySpeed;
-		if (input->IsKeyPressed(GLFW_KEY_N))
+		if (input->IsKeyPressed(GLFW_KEY_I))
 		{
 			if(densitySpeed > 1.0f)
 				--densitySpeed;
@@ -216,6 +226,9 @@ int main()
 		if (input->IsKeyPressed(GLFW_KEY_B))
 			renderDisplacementQuad = !renderDisplacementQuad;
 
+		if (input->IsKeyPressed(GLFW_KEY_F))
+			renderKDTree = !renderKDTree;
+
 		// change displacement
 		if (input->IsKeyPressed(GLFW_KEY_7))
 		{
@@ -244,6 +257,12 @@ int main()
 			PrintDisplacementSettings(displacementInitialSteps, displacementRefinementSteps);
 		}
 
+		// clear particle systems
+		if (input->IsKeyPressed(GLFW_KEY_X))
+		{
+			particleSystems.clear();
+		}
+
 		// camera movement
 		if (input->IsKeyDown(GLFW_KEY_W))
 			camera.Move(FPSCamera::Movement::FORWARD, deltaTime);
@@ -260,6 +279,31 @@ int main()
 			input->MouseChangesRead();
 			camera.HandleMouseMovement(input->GetMouseOffsetX(), input->GetMouseOffsetY());
 		}
+
+		// click events
+		int leftMouseButtonState = glfwGetMouseButton(window.GetGLFWWindow(), GLFW_MOUSE_BUTTON_LEFT);
+		if (leftMouseButtonState == GLFW_RELEASE && lastMouseState == GLFW_PRESS)
+		{
+			if(renderVolume.kdRoot != nullptr)
+			{
+				Ray ray(camera.GetPosition(), camera.GetDirection());
+				std::vector<std::pair<Triangle, float>> hitTriangles;
+				
+				KDTreeController::CheckHit(ray, renderVolume.kdRoot, hitTriangles, renderVolume.triangles);
+				
+				if (hitTriangles.size() > 0)
+				{
+					std::pair<Triangle, float>& nearestTri = *std::min_element(hitTriangles.begin(), hitTriangles.end(), [](const auto& a, const auto& b)
+					{
+						return a.second < b.second;
+					});
+
+					glm::vec3 hitPoint = camera.GetPosition() + camera.GetDirection() * nearestTri.second;
+					particleSystems.push_back(ParticleSystem(hitPoint, 0.2f));
+				}
+			}
+		}
+		lastMouseState = leftMouseButtonState;
 
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		glEnable(GL_DEPTH_TEST);
@@ -299,19 +343,22 @@ int main()
 
 		if (renderParticleSystem)
 		{
-			// update particles
-			particleSystem.UpdateParticles(shaderLib.GetShader(particleGeneratorKey), deltaTime);
+			for (size_t p = 0; p < particleSystems.size(); ++p)
+			{
+				// update particles
+				particleSystems[p].UpdateParticles(shaderLib.GetShader(particleGeneratorKey), deltaTime);
 
-			// render particles
-			Shader* particleRenderShader = shaderLib.GetShader(particleRendererKey);
+				// render particles
+				Shader* particleRenderShader = shaderLib.GetShader(particleRendererKey);
 
-			particleRenderShader->Use();
+				particleRenderShader->Use();
 
-			glm::mat4 modelMatrix;
-			glUniformMatrix4fv(glGetUniformLocation(particleRenderShader->program, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
-			glUniformMatrix4fv(glGetUniformLocation(particleRenderShader->program, "view"), 1, GL_FALSE, glm::value_ptr(viewMatrix));
-			glUniformMatrix4fv(glGetUniformLocation(particleRenderShader->program, "model"), 1, GL_FALSE, glm::value_ptr(modelMatrix));
-			particleSystem.Render(particleRenderShader);
+				glm::mat4 modelMatrix;
+				glUniformMatrix4fv(glGetUniformLocation(particleRenderShader->program, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
+				glUniformMatrix4fv(glGetUniformLocation(particleRenderShader->program, "view"), 1, GL_FALSE, glm::value_ptr(viewMatrix));
+				glUniformMatrix4fv(glGetUniformLocation(particleRenderShader->program, "model"), 1, GL_FALSE, glm::value_ptr(modelMatrix));
+				particleSystems[p].Render(particleRenderShader);
+			}
 		}
 
 		// render debug quad
@@ -357,21 +404,6 @@ int main()
 		// render the render volume
 		if (renderMarchingCubes)
 		{
-			//glm::mat4 modelMatrix;
-			//modelMatrix = glm::scale(modelMatrix, glm::vec3(10.0f, 10.0f, 10.0f));
-
-			//Shader* marchingCubesShader = shaderLib.GetShader(marchingCubesShaderKey);
-			//marchingCubesShader->Use();
-
-			//glUniformMatrix4fv(glGetUniformLocation(marchingCubesShader->program, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
-			//glUniformMatrix4fv(glGetUniformLocation(marchingCubesShader->program, "view"), 1, GL_FALSE, glm::value_ptr(viewMatrix));
-			//glUniformMatrix4fv(glGetUniformLocation(marchingCubesShader->program, "model"), 1, GL_FALSE, glm::value_ptr(modelMatrix));
-
-			//glUniform3fv(glGetUniformLocation(marchingCubesShader->program, "cameraPos"), 1, glm::value_ptr(camera.GetPosition()));
-			//glUniform3fv(glGetUniformLocation(marchingCubesShader->program, "lightPos"), 1, glm::value_ptr(lightPos));
-
-			//renderVolume.Render(densityTextureBuffer, marchingCubesShader);
-
 			glm::mat4 modelMatrix;
 			modelMatrix = glm::scale(modelMatrix, glm::vec3(10.0f, 10.0f, 10.0f));
 
@@ -388,6 +420,25 @@ int main()
 			renderVolume.Render(geometryRendererShader);
 		}
 
+		if (renderKDTree)
+		{
+			Shader* standardShader = shaderLib.GetShader(standardShaderKey);
+			standardShader->Use();
+
+			glUniformMatrix4fv(glGetUniformLocation(standardShader->program, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
+			glUniformMatrix4fv(glGetUniformLocation(standardShader->program, "view"), 1, GL_FALSE, glm::value_ptr(viewMatrix));
+
+			renderVolume.kdRoot->Draw(standardShader);
+		}
+
+		// render crosshair
+		Shader* hudShader = shaderLib.GetShader(hudKey);
+		hudShader->Use();
+
+		glm::mat4 hudProjection = glm::ortho(0.0f, static_cast<GLfloat>(window.GetWidth()), 0.0f, static_cast<GLfloat>(window.GetHeight()));
+		glUniformMatrix4fv(glGetUniformLocation(hudShader->program, "projection"), 1, GL_FALSE, glm::value_ptr(hudProjection));
+		RenderCrosshair(hudShader, glm::vec3(1.0f), window.GetWidth(), window.GetHeight());
+
 		// swap buffers
 		window.SwapBuffers();
 
@@ -403,4 +454,38 @@ int main()
 void PrintDisplacementSettings(int initialSteps, int refinementSteps)
 {
 	printf("Displacement Info:\n===================\nInitial Steps: %d\nRefinementSteps: %d\n\n", initialSteps, refinementSteps);
+}
+
+GLuint crosshairVAO = 0;
+GLuint crosshairVBO;
+void RenderCrosshair(Shader* shader, glm::vec3 color, GLuint width, GLuint height)
+{
+	if (crosshairVAO == 0)
+	{
+		GLint crosshairVertices[] = {
+			width / 2 - 7, height / 2, // horizontal line
+			width / 2 + 7, height / 2,
+
+			width / 2, height / 2 + 7, //vertical line
+			width / 2, height / 2 - 7
+		};
+		// Setup plane VAO
+		glGenVertexArrays(1, &crosshairVAO);
+		glGenBuffers(1, &crosshairVBO);
+		glBindVertexArray(crosshairVAO);
+		glBindBuffer(GL_ARRAY_BUFFER, crosshairVBO);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(crosshairVertices), &crosshairVertices, GL_STATIC_DRAW);
+		glEnableVertexAttribArray(0);
+		glVertexAttribPointer(0, 2, GL_INT, GL_FALSE, 2 * sizeof(GLint), static_cast<GLvoid*>(0));
+	}
+
+	glBindVertexArray(crosshairVAO);
+
+	GLint uObjectColor = glGetUniformLocation(shader->program, "objectColor");
+	glUniform3f(uObjectColor, color.x, color.y, color.z);
+
+	glDrawArrays(GL_LINES, 0, 2);
+	glDrawArrays(GL_LINES, 2, 2);
+
+	glBindVertexArray(0);
 }

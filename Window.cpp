@@ -95,6 +95,7 @@ void Window::SetInput(Input* input)
 
 	glfwSetKeyCallback(m_window, KeyCallback);
 	glfwSetCursorPosCallback(m_window, MouseCallback);
+	glfwSetMouseButtonCallback(m_window, MouseButtonCallback);
 }
 
 void Window::KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mode)
@@ -107,4 +108,10 @@ void Window::MouseCallback(GLFWwindow* window, double xpos, double ypos)
 {
 	Input* input = static_cast<Window*>(glfwGetWindowUserPointer(window))->m_input;
 	input->HandleCursor(xpos, ypos);
+}
+
+void Window::MouseButtonCallback(GLFWwindow* window, int button, int action, int mods)
+{
+	Input* input = static_cast<Window*>(glfwGetWindowUserPointer(window))->m_input;
+	input->HandleMouseButton(button, action, mods);
 }

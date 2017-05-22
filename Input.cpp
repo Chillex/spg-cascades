@@ -46,6 +46,11 @@ void Input::HandleCursor(double xpos, double ypos)
 	m_mouseCoordsChanged = true;
 }
 
+void Input::HandleMouseButton(int button, int action, int mods)
+{
+
+}
+
 void Input::Update()
 {
 	memcpy(m_keys_prev, m_keys, sizeof(m_keys));

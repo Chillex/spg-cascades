@@ -11,6 +11,7 @@ public:
 
 	void HandleKey(int key, int action);
 	void HandleCursor(double xpos, double ypos);
+	void HandleMouseButton(int button, int action, int mods);
 	void Update(void);
 
 	bool IsKeyDown(int key) const;

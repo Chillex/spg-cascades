@@ -124,7 +124,7 @@ glm::mat4 AdvancedQuad::GetModelMatrix() const
 {
 	glm::mat4 modelMatrix;
 	modelMatrix = glm::translate(modelMatrix, m_position);
-	//modelMatrix = glm::rotate(modelMatrix, -90.0f, glm::normalize(glm::vec3(1.0f, 0.0f, 0.0f)));
+	modelMatrix = glm::rotate(modelMatrix, -90.0f, glm::normalize(glm::vec3(1.0f, 0.0f, 0.0f)));
 
 	return modelMatrix;
 }

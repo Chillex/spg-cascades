@@ -78,6 +78,11 @@ glm::vec3 FPSCamera::GetPosition(void) const
 	return m_cameraPos;
 }
 
+glm::vec3 FPSCamera::GetDirection(void) const
+{
+	return m_cameraFront;
+}
+
 glm::quat FPSCamera::GetRotation(void) const
 {
 	glm::quat quatX = glm::angleAxis(glm::radians(m_pitch), glm::vec3(1.0f, 0.0f, 0.0f));

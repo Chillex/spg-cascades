@@ -2,11 +2,13 @@
 
 #include <glm/gtc/type_ptr.hpp>
 #include <vector>
+#include <SOIL/SOIL.h>
 
 #include "TextureBuffer3D.h"
 #include "Shader.h"
 #include "LUT.h"
-#include <SOIL/SOIL.h>
+#include <glm/gtc/matrix_transform.inl>
+#include "KDTreeController.h"
 
 RenderVolume::RenderVolume(GLuint width, GLuint height, GLuint depth)
 	: m_width(width)
@@ -72,7 +74,7 @@ RenderVolume::RenderVolume(GLuint width, GLuint height, GLuint depth)
 	glGenBuffers(1, &m_geometryTBO);
 	glBindVertexArray(m_geometryVAO);
 		glBindBuffer(GL_ARRAY_BUFFER, m_geometryTBO);
-			glBufferData(GL_ARRAY_BUFFER, 400000 * 6 * sizeof(GLfloat), nullptr, GL_DYNAMIC_READ);
+			glBufferData(GL_ARRAY_BUFFER, 400000 * 6 * sizeof(GLfloat), nullptr, GL_STATIC_READ);
 			glEnableVertexAttribArray(0);
 			glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 6 * sizeof(GLfloat), reinterpret_cast<GLvoid*>(0));
 			glEnableVertexAttribArray(1);
@@ -151,6 +153,8 @@ void RenderVolume::GenerateGeometry(const TextureBuffer3D& densityTexture, Shade
 
 	glGetQueryObjectuiv(m_query, GL_QUERY_RESULT, &m_primitivesCount);
 	printf("Generated %u Primitives.\n", m_primitivesCount);
+
+	CreateKDTree();
 }
 
 void RenderVolume::Render(const Shader* shader) const
@@ -200,4 +204,26 @@ void RenderVolume::GenerateTexture(GLuint& textureID, const char* texturePath)
 	glGenerateMipmap(GL_TEXTURE_2D);
 	SOIL_free_image_data(image);
 	glBindTexture(GL_TEXTURE_2D, 0);
+}
+
+void RenderVolume::CreateKDTree()
+{
+	glm::mat4 modelMatrix;
+	modelMatrix = glm::scale(modelMatrix, glm::vec3(10.0f, 10.0f, 10.0f));
+
+	std::vector<glm::vec3> geometryBuffer(m_primitivesCount * 6);
+	glBindBuffer(GL_ARRAY_BUFFER, m_geometryTBO);
+		glGetBufferSubData(GL_ARRAY_BUFFER, 0, m_primitivesCount * 6 * 3 * sizeof(GLfloat), &geometryBuffer[0]);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+	for (size_t i = 0; i < geometryBuffer.size(); i += 6)
+	{
+		glm::vec4 pos1(geometryBuffer[i + 0], 1.0f);
+		glm::vec4 pos2(geometryBuffer[i + 2], 1.0f);
+		glm::vec4 pos3(geometryBuffer[i + 4], 1.0f);
+
+		triangles.push_back({ glm::vec3(modelMatrix * pos1), glm::vec3(modelMatrix * pos2), glm::vec3(modelMatrix * pos3) });
+	}
+
+	kdRoot = KDTreeController::BuildKDTree(triangles);
 }

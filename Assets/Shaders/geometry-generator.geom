@@ -45,7 +45,10 @@ vec3 GetNormal(vec3 p1, vec3 p2, vec3 p3)
 	normal.y = (u.z * v.x) - (u.x * v.z);
 	normal.z = (u.x * v.y) - (u.y * v.x);
 
-	return normalize(normal);
+  if(length(normal) == 0.0f)
+    return normal;
+  else
+    return normalize(normal);
 }
 
 vec3 InterpolateVertex(float isoLevel, vec3 vertex1, float density1, vec3 vertex2, float density2)

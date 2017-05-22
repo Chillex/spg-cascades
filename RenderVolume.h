@@ -2,6 +2,7 @@
 #define RENDER_VOLUME_H
 
 #include <GL/glew.h>
+#include "KDTreeNode.h"
 
 class Shader;
 class TextureBuffer3D;
@@ -15,6 +16,9 @@ public:
 	void Render(const TextureBuffer3D& densityTexture, const Shader* shader) const;
 	void GenerateGeometry(const TextureBuffer3D& densityTexture, Shader* shader);
 	void Render(const Shader* shader) const;
+
+	KDTreeNode* kdRoot;
+	std::vector<Triangle> triangles;
 
 private:
 	GLuint m_width;
@@ -37,13 +41,10 @@ private:
 	GLuint m_rockTextureY;
 	GLuint m_rockTextureZ;
 
-	GLuint m_rockTextureDisplacementX;
-	GLuint m_rockTextureDisplacementY;
-	GLuint m_rockTextureDisplacementZ;
-
 	void BindTextures(GLuint shaderProgram) const;
 	void GenerateTextures(void);
 	void GenerateTexture(GLuint& textureID, const char* texturePath);
+	void CreateKDTree(void);
 };
 
 #endif

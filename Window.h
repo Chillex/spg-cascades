@@ -26,6 +26,7 @@ public:
 
 	static void KeyCallback(GLFWwindow* window, int key, int scancode, int action, int mode);
 	static void MouseCallback(GLFWwindow* window, double xpos, double ypos);
+	static void Window::MouseButtonCallback(GLFWwindow* window, int button, int action, int mods);
 
 	Input* m_input;
 protected:

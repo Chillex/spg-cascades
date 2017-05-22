@@ -1,13 +1,11 @@
-#include "Ray.h"
+﻿#include "Ray.h"
 
-Ray::Ray(glm::vec3 o, glm::vec3 d)
-	: origin(o)
-	, direction(d)
-	, inverseDirection(1/d.x, 1/d.y, 1/d.z)
-	, sign(inverseDirection.x < 0, inverseDirection.y < 0, inverseDirection.z < 0)
+Ray::Ray(glm::vec3 origin, glm::vec3 direction)
+	: mOrigin(origin)
+	, mDir(direction)
+	, mInvDir(1.0f / mDir)
 {
-}
-
-Ray::~Ray()
-{
+	mSign[0] = (mInvDir.x < 0.0f);
+	mSign[1] = (mInvDir.y < 0.0f);
+	mSign[2] = (mInvDir.z < 0.0f);
 }
