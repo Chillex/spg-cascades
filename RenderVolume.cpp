@@ -166,6 +166,13 @@ void RenderVolume::Render(const Shader* shader) const
 	glBindTexture(GL_TEXTURE_2D, 0);
 }
 
+void RenderVolume::RenderShadowPass() const
+{
+	glBindVertexArray(m_geometryVAO);
+		glDrawArrays(GL_TRIANGLES, 0, m_primitivesCount * 3);
+	glBindVertexArray(0);
+}
+
 void RenderVolume::BindTextures(GLuint shaderProgram) const
 {
 	glActiveTexture(GL_TEXTURE0);

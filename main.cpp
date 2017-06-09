@@ -20,35 +20,92 @@
 #include "KDTreeController.h"
 #include "Ray.h"
 
+void NormalRenderPass(Window& window, FPSCamera& camera, ShaderLibrary& shaderLib, TextureBuffer3D& densityTextureBuffer, RenderVolume& renderVolume, Quad& floor, Quad& debugQuad, AdvancedQuad& displacementQuad, float deltaTime);
+void ShadowRenderPass(Window& window, ShaderLibrary& shaderLib, RenderVolume& renderVolume, Quad& floor);
+
 void PrintDisplacementSettings(int initialSteps, int refinementSteps);
 void RenderCrosshair(Shader* shader, glm::vec3 color, GLuint width, GLuint height);
+
+void BlurShadowmap(ShaderLibrary& shaderLib);
+void DrawFullscreenQuad();
+
+GLuint Create2DTexture(GLint internalFormat, GLsizei width, GLsizei height, GLenum format, GLenum type);
+GLuint CreateFramebuffer(GLuint colorTexture, GLuint depthTexture);
+glm::mat4 GetShadowProjection();
+
+// input values
+bool wireframeMode = false;
+bool showDebugQuad = true;
+bool renderDensity = true;
+bool renderMarchingCubes = true;
+bool renderDisplacementQuad = false;
+bool renderParticleSystem = true;
+bool renderKDTree = false;
+
+// shader keys
+std::string debug3DTextureShaderKey = "debug-3dtexture";
+std::string standardShaderKey = "standard";
+std::string standardTextureShaderKey = "standard-texture";
+
+std::string densityShaderKey = "density";
+std::string geometryGeneratorKey = "geometry-generator";
+std::string geometryRendererKey = "geometry-renderer";
+
+std::string displacementShaderKey = "displacement";
+
+std::string particleGeneratorKey = "particle-generator";
+std::string particleRendererKey = "particle-renderer";
+
+std::string hudKey = "hud";
+
+std::string vsmShadowKey = "vsm-shadow";
+std::string blurKey = "blur";
+std::string shadowReceiverKey = "shadow-receiver";
+
+// density texure info
+GLuint densityWidth = 96;
+GLuint densityHeight = 256;
+GLuint densityDepth = 96;
+
+GLfloat densityOffset = 0.0f;
+GLfloat noiseStrength = 0.0f;
+GLfloat densitySpeed = 10.0f;
+
+GLuint densityVBO, densityVAO;
+
+// particle system
+std::vector<ParticleSystem> particleSystems;
+
+// debug for 3d texture
+GLuint debugLayer = 0;
+
+// displacement values
+bool useDisplacement = false;
+int displacementInitialSteps = 10;
+int displacementRefinementSteps = 5;
+
+// lighting
+glm::vec3 lightPos(15.0f, 20.0f, 15.0f);
+
+// VSM
+GLuint shadowMapTextureDepth;
+GLuint shadowMapTexture;
+GLuint shadowMapFBO;
+
+GLuint blurTexture;
+GLuint blurFBO;
+
+static GLuint SHADOWMAP_SIZE = 512;
+static const float BLUR_SCALE = 2.0f;
 
 int main()
 {
 	// setup window
 	Window window(1280, 720, "Cascades Demo");
-	window.SetClearColor({ 0.06f, 0.13f, 0.175f, 1.0f });
 
 	// setup input
 	Input* input = new Input();
 	window.SetInput(input);
-
-	// input values
-	bool wireframeMode = false;
-	bool showDebugQuad = false;
-	bool renderDensity = true;
-	bool renderMarchingCubes = true;
-	bool renderDisplacementQuad = false;
-	bool renderParticleSystem = true;
-	bool renderKDTree = false;
-
-	// lighting
-	glm::vec3 lightPos(0.0f, 10.0f, 10.0f);
-
-	// displacement values
-	bool useDisplacement = false;
-	int displacementInitialSteps = 10;
-	int displacementRefinementSteps = 5;
 
 	PrintDisplacementSettings(displacementInitialSteps, displacementRefinementSteps);
 
@@ -63,7 +120,6 @@ int main()
 		 -1.0f,  1.0f
 	};
 
-	GLuint densityVBO, densityVAO;
 	glGenBuffers(1, &densityVBO);
 	glGenVertexArrays(1, &densityVAO);
 	glBindVertexArray(densityVAO);
@@ -80,67 +136,70 @@ int main()
 	ShaderLibrary shaderLib(shaderPath);
 
 	// debugging shaders
-	std::string debug3DTextureShaderKey = "debug-3dtexture";
 	shaderLib.WatchShader(debug3DTextureShaderKey);
-	std::string standardShaderKey = "standard";
 	shaderLib.WatchShader(standardShaderKey);
+	shaderLib.WatchShader(standardTextureShaderKey);
 
 	// marching cubes shaders
-	std::string densityShaderKey = "density";
 	shaderLib.WatchShader(densityShaderKey);
-	std::string geometryGeneratorKey = "geometry-generator";
 	shaderLib.WatchShader(geometryGeneratorKey, { "outPosition", "outNormal" });
-	std::string geometryRendererKey = "geometry-renderer";
 	shaderLib.WatchShader(geometryRendererKey);
 
 	// displacement shaders
-	std::string displacementShaderKey = "displacement";
 	shaderLib.WatchShader(displacementShaderKey);
 
 	// particle shaders
-	std::string particleGeneratorKey = "particle-generator";
 	shaderLib.WatchShader(particleGeneratorKey, { "outPosition", "outVelocity", "outLifetime", "outType" });
-	std::string particleRendererKey = "particle-renderer";
 	shaderLib.WatchShader(particleRendererKey);
 
 	// hud shader
-	std::string hudKey = "hud";
 	shaderLib.WatchShader(hudKey);
+
+	// vsm shader
+	shaderLib.WatchShader(vsmShadowKey);
+	shaderLib.WatchShader(blurKey);
+	shaderLib.WatchShader(shadowReceiverKey);
 
 	// compile all the shaders
 	shaderLib.Update();
 
+	// debug quad
+	Quad debugQuad;
+
 	// quad for displacement mapping test
 	AdvancedQuad displacementQuad(glm::vec3(0.0f), "Assets/Textures/rock2.jpg", "Assets/Textures/rock2_NRM.jpg", "Assets/Textures/rock2_DISP.jpg");
 
-	// debug for 3d texture
-	Quad debugQuad;
-	GLuint layer = 0;
+	// floor
+	Quad floor;
 
-	FPSCamera camera(glm::vec3(13.0f, 10.0f, 20.0f), glm::vec3(0.0f, 1.0f, 0.0f), 45.0f, 5.0f, 0.2f);
+	FPSCamera camera(glm::vec3(0.0, 10.0f, 10.0f), glm::vec3(0.0f, 1.0f, 0.0f), 45.0f, 5.0f, 0.2f);
 
 	GLfloat currentFrameTime = glfwGetTime();
 	GLfloat lastFrameTime = currentFrameTime;
 	GLfloat deltaTime;
 
 	// prerender density texture
-	GLuint width = 96;
-	GLuint height = 256;
-	GLuint depth = 96;
-	TextureBuffer3D densityTextureBuffer(width, depth, height);
+	TextureBuffer3D densityTextureBuffer(densityWidth, densityDepth, densityHeight);
 	// create render volume
-	RenderVolume renderVolume(width, height, depth);
-	
-	// variables for density
-	GLfloat densityOffset = 0.0f;
-	GLfloat noiseStrength = 0.0f;
-	GLfloat densitySpeed = 10.0f;
+	RenderVolume renderVolume(densityWidth, densityHeight, densityDepth);
 
-	// particle system
-	std::vector<ParticleSystem> particleSystems;
+	// shadow map
+	shadowMapTextureDepth = Create2DTexture(GL_DEPTH_COMPONENT, SHADOWMAP_SIZE, SHADOWMAP_SIZE, GL_DEPTH_COMPONENT, GL_FLOAT);
+	shadowMapTexture = Create2DTexture(GL_RG32F, SHADOWMAP_SIZE, SHADOWMAP_SIZE, GL_RG, GL_FLOAT);
+	shadowMapFBO = CreateFramebuffer(shadowMapTexture, shadowMapTextureDepth);
+
+	// blurring
+	blurTexture = Create2DTexture(GL_RG32F, SHADOWMAP_SIZE, SHADOWMAP_SIZE, GL_RG, GL_FLOAT);
+	blurFBO = CreateFramebuffer(blurTexture, -1);
 
 	// last mouse state
 	int lastMouseState = GLFW_RELEASE;
+
+	glEnable(GL_DEPTH_TEST);
+	glDepthFunc(GL_LEQUAL);
+	//glEnable(GL_CULL_FACE);
+	//glCullFace(GL_BACK);
+	//glFrontFace(GL_CW);
 
 	while(!window.ShouldClose())
 	{
@@ -161,16 +220,16 @@ int main()
 		if (input->IsKeyPressed(GLFW_KEY_T))
 			wireframeMode = !wireframeMode;
 
-		// debug layer of 3d texture
+		// debug debugLayer of 3d texture
 		if (input->IsKeyDown(GLFW_KEY_RIGHT_BRACKET))
 		{
-			if (layer < densityTextureBuffer.GetLayerCount())
-				++layer;
+			if (debugLayer < densityTextureBuffer.GetLayerCount())
+				++debugLayer;
 		}
 		if (input->IsKeyDown(GLFW_KEY_SLASH))
 		{
-			if (layer > 0)
-				--layer;
+			if (debugLayer > 0)
+				--debugLayer;
 		}
 
 		// change density offset
@@ -305,139 +364,11 @@ int main()
 		}
 		lastMouseState = leftMouseButtonState;
 
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-		glEnable(GL_DEPTH_TEST);
-
-		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-
 		// update shaders
 		shaderLib.Update();
 
-		glm::mat4 projectionMatrix = camera.GetProjectionMatrix(static_cast<GLfloat>(window.GetWidth()), static_cast<GLfloat>(window.GetHeight()));
-		glm::mat4 viewMatrix = camera.GetViewMatrix();
-
-		// rendering
-
-		// first renderpass -> render density texture
-		if(renderDensity)
-		{
-			shaderLib.GetShader(densityShaderKey)->Use();
-
-			glUniform1f(glGetUniformLocation(shaderLib.GetShader(densityShaderKey)->program, "offset"), densityOffset);
-			glUniform1f(glGetUniformLocation(shaderLib.GetShader(densityShaderKey)->program, "noiseStrength"), noiseStrength);
-			glUniform3f(glGetUniformLocation(shaderLib.GetShader(densityShaderKey)->program, "dimensions"), width, depth, height);
-
-			densityTextureBuffer.Bind();
-			glBindVertexArray(densityVAO);
-			glDrawArraysInstanced(GL_TRIANGLES, 0, 6, densityTextureBuffer.GetLayerCount());
-			glBindVertexArray(0);
-			densityTextureBuffer.Unbind();
-
-			renderDensity = false;
-
-			// generate geometry once
-			renderVolume.GenerateGeometry(densityTextureBuffer, shaderLib.GetShader(geometryGeneratorKey));
-		}
-
-		glViewport(0, 0, window.GetWidth(), window.GetHeight());
-
-		if (renderParticleSystem)
-		{
-			for (size_t p = 0; p < particleSystems.size(); ++p)
-			{
-				// update particles
-				particleSystems[p].UpdateParticles(shaderLib.GetShader(particleGeneratorKey), deltaTime);
-
-				// render particles
-				Shader* particleRenderShader = shaderLib.GetShader(particleRendererKey);
-
-				particleRenderShader->Use();
-
-				glm::mat4 modelMatrix;
-				glUniformMatrix4fv(glGetUniformLocation(particleRenderShader->program, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
-				glUniformMatrix4fv(glGetUniformLocation(particleRenderShader->program, "view"), 1, GL_FALSE, glm::value_ptr(viewMatrix));
-				glUniformMatrix4fv(glGetUniformLocation(particleRenderShader->program, "model"), 1, GL_FALSE, glm::value_ptr(modelMatrix));
-				particleSystems[p].Render(particleRenderShader);
-			}
-		}
-
-		// render debug quad
-		if (showDebugQuad)
-		{
-			shaderLib.GetShader(debug3DTextureShaderKey)->Use();
-
-			glActiveTexture(GL_TEXTURE0);
-			densityTextureBuffer.BindTexture();
-			
-			glUniformMatrix4fv(glGetUniformLocation(shaderLib.GetShader(debug3DTextureShaderKey)->program, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
-			glUniformMatrix4fv(glGetUniformLocation(shaderLib.GetShader(debug3DTextureShaderKey)->program, "view"), 1, GL_FALSE, glm::value_ptr(viewMatrix));
-			glUniformMatrix4fv(glGetUniformLocation(shaderLib.GetShader(debug3DTextureShaderKey)->program, "model"), 1, GL_FALSE, glm::value_ptr(debugQuad.GetModelMatrix()));
-			
-			GLfloat layerCoord = static_cast<GLfloat>(layer) / static_cast<GLfloat>(densityTextureBuffer.GetLayerCount());
-			glUniform1f(glGetUniformLocation(shaderLib.GetShader(debug3DTextureShaderKey)->program, "textureZCoord"), layerCoord);
-
-			debugQuad.Render();
-		}
-
-		if (renderDisplacementQuad)
-		{
-			Shader* displacementShader = shaderLib.GetShader(displacementShaderKey);
-			displacementShader->Use();
-
-			glUniformMatrix4fv(glGetUniformLocation(displacementShader->program, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
-			glUniformMatrix4fv(glGetUniformLocation(displacementShader->program, "view"), 1, GL_FALSE, glm::value_ptr(viewMatrix));
-			glUniformMatrix4fv(glGetUniformLocation(displacementShader->program, "model"), 1, GL_FALSE, glm::value_ptr(displacementQuad.GetModelMatrix()));
-
-			glUniform3fv(glGetUniformLocation(displacementShader->program, "lightPos"), 1, &lightPos[0]);
-			glUniform3fv(glGetUniformLocation(displacementShader->program, "viewPos"), 1, &camera.GetPosition()[0]);
-
-			glUniform1i(glGetUniformLocation(displacementShader->program, "useDisplacement"), useDisplacement);
-			glUniform1i(glGetUniformLocation(displacementShader->program, "displacementInitialSteps"), displacementInitialSteps);
-			glUniform1i(glGetUniformLocation(displacementShader->program, "displacementRefinementSteps"), displacementRefinementSteps);
-
-			displacementQuad.Render(displacementShader);
-		}
-
-		if (wireframeMode)
-			glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-		
-		// render the render volume
-		if (renderMarchingCubes)
-		{
-			glm::mat4 modelMatrix;
-			modelMatrix = glm::scale(modelMatrix, glm::vec3(10.0f, 10.0f, 10.0f));
-
-			Shader* geometryRendererShader = shaderLib.GetShader(geometryRendererKey);
-			geometryRendererShader->Use();
-
-			glUniformMatrix4fv(glGetUniformLocation(geometryRendererShader->program, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
-			glUniformMatrix4fv(glGetUniformLocation(geometryRendererShader->program, "view"), 1, GL_FALSE, glm::value_ptr(viewMatrix));
-			glUniformMatrix4fv(glGetUniformLocation(geometryRendererShader->program, "model"), 1, GL_FALSE, glm::value_ptr(modelMatrix));
-
-			glUniform3fv(glGetUniformLocation(geometryRendererShader->program, "cameraPos"), 1, glm::value_ptr(camera.GetPosition()));
-			glUniform3fv(glGetUniformLocation(geometryRendererShader->program, "lightPos"), 1, glm::value_ptr(lightPos));
-
-			renderVolume.Render(geometryRendererShader);
-		}
-
-		if (renderKDTree)
-		{
-			Shader* standardShader = shaderLib.GetShader(standardShaderKey);
-			standardShader->Use();
-
-			glUniformMatrix4fv(glGetUniformLocation(standardShader->program, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
-			glUniformMatrix4fv(glGetUniformLocation(standardShader->program, "view"), 1, GL_FALSE, glm::value_ptr(viewMatrix));
-
-			renderVolume.kdRoot->Draw(standardShader);
-		}
-
-		// render crosshair
-		Shader* hudShader = shaderLib.GetShader(hudKey);
-		hudShader->Use();
-
-		glm::mat4 hudProjection = glm::ortho(0.0f, static_cast<GLfloat>(window.GetWidth()), 0.0f, static_cast<GLfloat>(window.GetHeight()));
-		glUniformMatrix4fv(glGetUniformLocation(hudShader->program, "projection"), 1, GL_FALSE, glm::value_ptr(hudProjection));
-		RenderCrosshair(hudShader, glm::vec3(1.0f), window.GetWidth(), window.GetHeight());
+		ShadowRenderPass(window, shaderLib, renderVolume, floor);
+		NormalRenderPass(window, camera, shaderLib, densityTextureBuffer, renderVolume, floor, debugQuad, displacementQuad, deltaTime);
 
 		// swap buffers
 		window.SwapBuffers();
@@ -449,6 +380,245 @@ int main()
 	delete input;
 	
 	return 0;
+}
+
+void NormalRenderPass(Window& window, FPSCamera& camera, ShaderLibrary& shaderLib, TextureBuffer3D& densityTextureBuffer, RenderVolume& renderVolume, Quad& floor, Quad& debugQuad, AdvancedQuad& displacementQuad, float deltaTime)
+{
+	window.SetClearColor({ 0.06f, 0.13f, 0.175f, 1.0f });
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+	glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+
+	glm::mat4 projectionMatrix = camera.GetProjectionMatrix(static_cast<GLfloat>(window.GetWidth()), static_cast<GLfloat>(window.GetHeight()));
+	glm::mat4 viewMatrix = camera.GetViewMatrix();
+
+	// rendering
+
+	// first renderpass -> render density texture
+	if (renderDensity)
+	{
+		shaderLib.GetShader(densityShaderKey)->Use();
+
+		glUniform1f(glGetUniformLocation(shaderLib.GetShader(densityShaderKey)->program, "offset"), densityOffset);
+		glUniform1f(glGetUniformLocation(shaderLib.GetShader(densityShaderKey)->program, "noiseStrength"), noiseStrength);
+		glUniform3f(glGetUniformLocation(shaderLib.GetShader(densityShaderKey)->program, "dimensions"), densityWidth, densityDepth, densityHeight);
+
+		densityTextureBuffer.Bind();
+		glBindVertexArray(densityVAO);
+		glDrawArraysInstanced(GL_TRIANGLES, 0, 6, densityTextureBuffer.GetLayerCount());
+		glBindVertexArray(0);
+		densityTextureBuffer.Unbind();
+
+		renderDensity = false;
+
+		// generate geometry once
+		renderVolume.GenerateGeometry(densityTextureBuffer, shaderLib.GetShader(geometryGeneratorKey));
+	}
+
+	glViewport(0, 0, window.GetWidth(), window.GetHeight());
+
+	if (renderParticleSystem)
+	{
+		for (size_t p = 0; p < particleSystems.size(); ++p)
+		{
+			// update particles
+			particleSystems[p].UpdateParticles(shaderLib.GetShader(particleGeneratorKey), deltaTime);
+
+			// render particles
+			Shader* particleRenderShader = shaderLib.GetShader(particleRendererKey);
+
+			particleRenderShader->Use();
+
+			glm::mat4 modelMatrix;
+			glUniformMatrix4fv(glGetUniformLocation(particleRenderShader->program, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
+			glUniformMatrix4fv(glGetUniformLocation(particleRenderShader->program, "view"), 1, GL_FALSE, glm::value_ptr(viewMatrix));
+			glUniformMatrix4fv(glGetUniformLocation(particleRenderShader->program, "model"), 1, GL_FALSE, glm::value_ptr(modelMatrix));
+			particleSystems[p].Render(particleRenderShader);
+		}
+	}
+
+	// render debug quad
+	if (showDebugQuad)
+	{
+		Shader* textureShader = shaderLib.GetShader(standardTextureShaderKey);
+		textureShader->Use();
+
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, shadowMapTexture);
+
+		glUniformMatrix4fv(glGetUniformLocation(textureShader->program, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
+		glUniformMatrix4fv(glGetUniformLocation(textureShader->program, "view"), 1, GL_FALSE, glm::value_ptr(viewMatrix));
+		glUniformMatrix4fv(glGetUniformLocation(textureShader->program, "model"), 1, GL_FALSE, glm::value_ptr(glm::translate(debugQuad.GetModelMatrix(), glm::vec3(0.0f, 10.0f, 0.0f))));
+
+		debugQuad.Render();
+
+		glBindTexture(GL_TEXTURE_2D, 0);
+
+		//Shader* debug3DShader = shaderLib.GetShader(debug3DTextureShaderKey);
+		//debug3DShader->Use();
+
+		//glActiveTexture(GL_TEXTURE0);
+		//densityTextureBuffer.BindTexture();
+
+		//glUniformMatrix4fv(glGetUniformLocation(debug3DShader->program, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
+		//glUniformMatrix4fv(glGetUniformLocation(debug3DShader->program, "view"), 1, GL_FALSE, glm::value_ptr(viewMatrix));
+		//glUniformMatrix4fv(glGetUniformLocation(debug3DShader->program, "model"), 1, GL_FALSE, glm::value_ptr(debugQuad.GetModelMatrix()));
+
+		//GLfloat layerCoord = static_cast<GLfloat>(debugLayer) / static_cast<GLfloat>(densityTextureBuffer.GetLayerCount());
+		//glUniform1f(glGetUniformLocation(shaderLib.GetShader(debug3DTextureShaderKey)->program, "textureZCoord"), layerCoord);
+		//glUniform1f(glGetUniformLocation(shaderLib.GetShader(debug3DTextureShaderKey)->program, "textureZCoord"), 0);
+
+		//debugQuad.Render();
+	}
+
+	if (renderDisplacementQuad)
+	{
+		Shader* displacementShader = shaderLib.GetShader(displacementShaderKey);
+		displacementShader->Use();
+
+		glUniformMatrix4fv(glGetUniformLocation(displacementShader->program, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
+		glUniformMatrix4fv(glGetUniformLocation(displacementShader->program, "view"), 1, GL_FALSE, glm::value_ptr(viewMatrix));
+		glUniformMatrix4fv(glGetUniformLocation(displacementShader->program, "model"), 1, GL_FALSE, glm::value_ptr(displacementQuad.GetModelMatrix()));
+
+		glUniform3fv(glGetUniformLocation(displacementShader->program, "lightPos"), 1, &lightPos[0]);
+		glUniform3fv(glGetUniformLocation(displacementShader->program, "viewPos"), 1, &camera.GetPosition()[0]);
+
+		glUniform1i(glGetUniformLocation(displacementShader->program, "useDisplacement"), useDisplacement);
+		glUniform1i(glGetUniformLocation(displacementShader->program, "displacementInitialSteps"), displacementInitialSteps);
+		glUniform1i(glGetUniformLocation(displacementShader->program, "displacementRefinementSteps"), displacementRefinementSteps);
+
+		displacementQuad.Render(displacementShader);
+	}
+
+	if (wireframeMode)
+		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+
+	// render the render volume
+	if (renderMarchingCubes)
+	{
+		glm::mat4 modelMatrix;
+		modelMatrix = glm::scale(modelMatrix, glm::vec3(10.0f, 10.0f, 10.0f));
+
+		Shader* geometryRendererShader = shaderLib.GetShader(geometryRendererKey);
+		geometryRendererShader->Use();
+
+		glUniformMatrix4fv(glGetUniformLocation(geometryRendererShader->program, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
+		glUniformMatrix4fv(glGetUniformLocation(geometryRendererShader->program, "view"), 1, GL_FALSE, glm::value_ptr(viewMatrix));
+		glUniformMatrix4fv(glGetUniformLocation(geometryRendererShader->program, "model"), 1, GL_FALSE, glm::value_ptr(modelMatrix));
+
+		glUniform3fv(glGetUniformLocation(geometryRendererShader->program, "cameraPos"), 1, glm::value_ptr(camera.GetPosition()));
+		glUniform3fv(glGetUniformLocation(geometryRendererShader->program, "lightPos"), 1, &lightPos[0]);
+
+		renderVolume.Render(geometryRendererShader);
+
+		// render floor
+		glm::mat4 floorMatrix;
+		floorMatrix = glm::rotate(floorMatrix, 90.0f, glm::vec3(1.0f, 0.0f, 0.0f));
+		floorMatrix = glm::scale(floorMatrix, glm::vec3(10.0f, 10.0f, 10.0f));
+
+		Shader* floorShader = shaderLib.GetShader(shadowReceiverKey);
+		floorShader->Use();
+
+		glUniformMatrix4fv(glGetUniformLocation(floorShader->program, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
+		glUniformMatrix4fv(glGetUniformLocation(floorShader->program, "view"), 1, GL_FALSE, glm::value_ptr(viewMatrix));
+		glUniformMatrix4fv(glGetUniformLocation(floorShader->program, "model"), 1, GL_FALSE, glm::value_ptr(floorMatrix));
+
+
+		glm::mat4 shadowProjection = GetShadowProjection();
+		glUniformMatrix4fv(glGetUniformLocation(floorShader->program, "cameraToShadowProjection"), 1, GL_FALSE, glm::value_ptr(shadowProjection));
+
+		glm::vec3 floorColor(0.0f, 0.36f, 0.04f);
+		glUniformMatrix3fv(glGetUniformLocation(floorShader->program, "lightPos"), 1, GL_FALSE, &lightPos[0]);
+
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, shadowMapTexture);
+			floor.Render();
+		glBindTexture(GL_TEXTURE_2D, 0);
+	}
+
+	if (renderKDTree)
+	{
+		Shader* standardShader = shaderLib.GetShader(standardShaderKey);
+		standardShader->Use();
+
+		glUniformMatrix4fv(glGetUniformLocation(standardShader->program, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
+		glUniformMatrix4fv(glGetUniformLocation(standardShader->program, "view"), 1, GL_FALSE, glm::value_ptr(viewMatrix));
+
+		renderVolume.kdRoot->Draw(standardShader);
+	}
+
+	// render crosshair
+	Shader* hudShader = shaderLib.GetShader(hudKey);
+	hudShader->Use();
+
+	glm::mat4 hudProjection = glm::ortho(0.0f, static_cast<GLfloat>(window.GetWidth()), 0.0f, static_cast<GLfloat>(window.GetHeight()));
+	glUniformMatrix4fv(glGetUniformLocation(hudShader->program, "projection"), 1, GL_FALSE, glm::value_ptr(hudProjection));
+	RenderCrosshair(hudShader, glm::vec3(1.0f), window.GetWidth(), window.GetHeight());
+}
+
+void ShadowRenderPass(Window& window, ShaderLibrary& shaderLib, RenderVolume& renderVolume, Quad& floor)
+{
+	glBindFramebuffer(GL_FRAMEBUFFER, shadowMapFBO);
+	glViewport(0, 0, SHADOWMAP_SIZE, SHADOWMAP_SIZE);
+
+	window.SetClearColor({ 1.0f, 1.0f, 1.0f, 1.0f });
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+	Shader* vsmShadowShader = shaderLib.GetShader(vsmShadowKey);
+	vsmShadowShader->Use();
+
+	glm::mat4 shadowProjection = GetShadowProjection();
+	glUniformMatrix4fv(glGetUniformLocation(vsmShadowShader->program, "cameraToShadowProjection"), 1, GL_FALSE, glm::value_ptr(shadowProjection));
+
+	// render the render volume
+	if (renderMarchingCubes)
+	{
+		glm::mat4 modelMatrix;
+		modelMatrix = glm::scale(modelMatrix, glm::vec3(10.0f, 10.0f, 10.0f));
+		glUniformMatrix4fv(glGetUniformLocation(vsmShadowShader->program, "model"), 1, GL_FALSE, glm::value_ptr(modelMatrix));
+
+		renderVolume.RenderShadowPass();
+
+		// render floor
+		glm::mat4 floorMatrix;
+		floorMatrix = glm::rotate(floorMatrix, 90.0f, glm::vec3(1.0f, 0.0f, 0.0f));
+		floorMatrix = glm::scale(floorMatrix, glm::vec3(10.0f, 10.0f, 10.0f));
+		glUniformMatrix4fv(glGetUniformLocation(vsmShadowShader->program, "model"), 1, GL_FALSE, glm::value_ptr(floorMatrix));
+
+		floor.Render();
+	}
+
+	// blur
+	//glDisable(GL_DEPTH_TEST);
+
+	//Shader* blurShader = shaderLib.GetShader(blurKey);
+	//blurShader->Use();
+
+	////// blur horizontally to blurTexture
+	//glBindFramebuffer(GL_FRAMEBUFFER, blurFBO);
+	//glBindTexture(GL_TEXTURE_2D, shadowMapTexture);
+	//glUniform2f(glGetUniformLocation(blurShader->program, "scale"), 1.0f / SHADOWMAP_SIZE * BLUR_SCALE, 0.0f);
+	//glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	//DrawFullscreenQuad();
+
+	////// blur texture vertically to shadowMapTexture
+	//glBindFramebuffer(GL_FRAMEBUFFER, shadowMapFBO);
+	//glBindTexture(GL_TEXTURE_2D, blurTexture);
+	//glUniform2f(glGetUniformLocation(blurShader->program, "scale"), 0.0f, 1.0f / SHADOWMAP_SIZE * BLUR_SCALE);
+	//glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	//DrawFullscreenQuad();
+
+	//glEnable(GL_DEPTH_TEST);
+
+	// reset
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	glBindTexture(GL_TEXTURE_2D, 0);
+}
+
+void DrawFullscreenQuad()
+{
+	Quad quad;
+	quad.Render();
 }
 
 void PrintDisplacementSettings(int initialSteps, int refinementSteps)
@@ -488,4 +658,61 @@ void RenderCrosshair(Shader* shader, glm::vec3 color, GLuint width, GLuint heigh
 	glDrawArrays(GL_LINES, 2, 2);
 
 	glBindVertexArray(0);
+}
+
+void BlurShadowmap(ShaderLibrary& shaderLib)
+{
+	
+}
+
+GLuint Create2DTexture(GLint internalFormat, GLsizei width, GLsizei height, GLenum format, GLenum type)
+{
+	GLuint texture;
+	glGenTextures(1, &texture);
+
+	glBindTexture(GL_TEXTURE_2D, texture);
+	glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, width, height, 0, format, type, nullptr);
+
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+
+	glBindTexture(GL_TEXTURE_2D, 0);
+
+	return texture;
+}
+
+GLuint CreateFramebuffer(GLuint colorTexture, GLuint depthTexture)
+{
+	GLuint fbo;
+	glGenFramebuffers(1, &fbo);
+	glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+
+	if(colorTexture != -1)
+	{
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colorTexture, 0);
+	}
+
+	if (depthTexture != -1)
+	{
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthTexture, 0);
+	}
+
+	GLenum result = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+	if(result != GL_FRAMEBUFFER_COMPLETE)
+	{
+		printf("ERROR: Framebuffer is not complete!\n");
+	}
+
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+	return fbo;
+}
+
+glm::mat4 GetShadowProjection()
+{
+	glm::mat4 shadowProjection;
+	shadowProjection *= glm::perspective(45.0f, 1.0f, 0.1f, 100.0f);
+	shadowProjection *= glm::lookAt(lightPos, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+
+	return shadowProjection;
 }

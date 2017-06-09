@@ -16,6 +16,7 @@ public:
 	void Render(const TextureBuffer3D& densityTexture, const Shader* shader) const;
 	void GenerateGeometry(const TextureBuffer3D& densityTexture, Shader* shader);
 	void Render(const Shader* shader) const;
+	void RenderShadowPass() const;
 
 	KDTreeNode* kdRoot;
 	std::vector<Triangle> triangles;
