@@ -11,8 +11,7 @@ out vec4 fragColor;
 
 uniform sampler2D shadowMap;
 
-uniform mat4 view;
-uniform vec3 lightPos;
+uniform vec3 objectColor;
 
 // From http://fabiensanglard.net/shadowmappingVSM/index.php
 float chebyshevUpperBound(vec2 coords, float distance)
@@ -27,10 +26,16 @@ float chebyshevUpperBound(vec2 coords, float distance)
     // the fragment is either in shadow or penumbra
     // we now use chebyshev's upperBound to check how likely this fragment is to be lit
 		float variance = moments.y - (moments.x * moments.x);
-		variance = max(variance, 0.00002);
+		variance = max(variance, 0.000002f);
 
 		float dist = distance - moments.x;
-		return variance / (variance + dist * dist);
+		float pMax = variance / (variance + dist * dist);
+
+    // reduce light bleeding
+    // from https://developer.nvidia.com/gpugems/GPUGems3/gpugems3_ch08.html
+    pMax = smoothstep(0.1f, 1.0f, pMax);
+
+    return pMax;
 }
 
 void main()
@@ -53,29 +58,5 @@ void main()
     shadowFactor = chebyshevUpperBound(shadowCasterNorm.xy, shadowCasterNorm.z);
   }
 
-  // LIGHTING
-  vec3 light = vec3(view * vec4(lightPos, 1.0f));
-
-  vec4 diffColor = vec4(1.0f, 1.0f, 1.0f, 1.0f);
-
-  vec3 positionToLight = light - fragment;
-  vec3 lightDir = normalize(positionToLight);
-
-  // calculate angle between normal and light
-  float angle = clamp(dot(lightDir, normal), 0.0f, 1.0f);
-
-  float constAtt = 1.0f;
-  float linearAtt = 0.0f;
-  float quadAtt = 0.0f;
-
-  float attenuation = 1.0f / (constAtt + linearAtt * length(positionToLight) + quadAtt * pow(length(positionToLight), 2));
-
-  vec4 lightColor = vec4(1.0f, 1.0f, 1.0f, 1.0f);
-  vec4 diffuse = diffColor * lightColor * angle * attenuation;
-
-  vec4 result;
-  result += vec4(0.1f, 0.1f, 0.1f, 1.0f) * diffColor; // ambient
-  result += diffuse * shadowFactor; // diffuse
-
-  fragColor = vec4(vec3(result), 1.0f);
+  fragColor = vec4(objectColor * shadowFactor, 1.0f);
 }

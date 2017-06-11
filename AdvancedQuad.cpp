@@ -120,11 +120,21 @@ void AdvancedQuad::Render(Shader* shader) const
 	glBindTexture(GL_TEXTURE_2D, 0);
 }
 
+void AdvancedQuad::RenderShadowPass() const
+{
+	if (m_vao == 0)
+		return;
+
+	glBindVertexArray(m_vao);
+		glDrawArrays(GL_TRIANGLES, 0, 6);
+	glBindVertexArray(0);
+}
+
 glm::mat4 AdvancedQuad::GetModelMatrix() const
 {
 	glm::mat4 modelMatrix;
 	modelMatrix = glm::translate(modelMatrix, m_position);
-	modelMatrix = glm::rotate(modelMatrix, -90.0f, glm::normalize(glm::vec3(1.0f, 0.0f, 0.0f)));
+	//modelMatrix = glm::rotate(modelMatrix, -90.0f, glm::normalize(glm::vec3(1.0f, 0.0f, 0.0f)));
 
 	return modelMatrix;
 }

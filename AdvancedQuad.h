@@ -13,6 +13,7 @@ public:
 	~AdvancedQuad();
 
 	void Render(Shader* shader) const;
+	void RenderShadowPass() const;
 
 	glm::mat4 GetModelMatrix() const;
 private:

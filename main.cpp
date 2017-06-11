@@ -20,13 +20,12 @@
 #include "KDTreeController.h"
 #include "Ray.h"
 
-void NormalRenderPass(Window& window, FPSCamera& camera, ShaderLibrary& shaderLib, TextureBuffer3D& densityTextureBuffer, RenderVolume& renderVolume, Quad& floor, Quad& debugQuad, AdvancedQuad& displacementQuad, float deltaTime);
-void ShadowRenderPass(Window& window, ShaderLibrary& shaderLib, RenderVolume& renderVolume, Quad& floor);
+void NormalRenderPass(Window& window, FPSCamera& camera, ShaderLibrary& shaderLib, TextureBuffer3D& densityTextureBuffer, RenderVolume& renderVolume, Quad& floor, Quad& debugQuad, AdvancedQuad& displacementQuad, AdvancedQuad& displacementQuad2, float deltaTime);
+void ShadowRenderPass(Window& window, ShaderLibrary& shaderLib, RenderVolume& renderVolume, Quad& floor, AdvancedQuad& displacementQuad, AdvancedQuad& displacementQuad2);
 
 void PrintDisplacementSettings(int initialSteps, int refinementSteps);
 void RenderCrosshair(Shader* shader, glm::vec3 color, GLuint width, GLuint height);
 
-void BlurShadowmap(ShaderLibrary& shaderLib);
 void DrawFullscreenQuad();
 
 GLuint Create2DTexture(GLint internalFormat, GLsizei width, GLsizei height, GLenum format, GLenum type);
@@ -35,10 +34,10 @@ glm::mat4 GetShadowProjection();
 
 // input values
 bool wireframeMode = false;
-bool showDebugQuad = true;
+bool showDebugQuad = false;
 bool renderDensity = true;
 bool renderMarchingCubes = true;
-bool renderDisplacementQuad = false;
+bool renderDisplacementQuad = true;
 bool renderParticleSystem = true;
 bool renderKDTree = false;
 
@@ -95,8 +94,8 @@ GLuint shadowMapFBO;
 GLuint blurTexture;
 GLuint blurFBO;
 
-static GLuint SHADOWMAP_SIZE = 512;
-static const float BLUR_SCALE = 2.0f;
+static GLuint SHADOWMAP_SIZE = 1024;
+static const float BLUR_SCALE = 1.5f;
 
 int main()
 {
@@ -167,7 +166,8 @@ int main()
 	Quad debugQuad;
 
 	// quad for displacement mapping test
-	AdvancedQuad displacementQuad(glm::vec3(0.0f), "Assets/Textures/rock2.jpg", "Assets/Textures/rock2_NRM.jpg", "Assets/Textures/rock2_DISP.jpg");
+	AdvancedQuad displacementQuad(glm::vec3(-4.5f, 4.0f, 4.0f), "Assets/Textures/rock.jpg", "Assets/Textures/rock_NRM.jpg", "Assets/Textures/rock_DISP.jpg");
+	AdvancedQuad displacementQuad2(glm::vec3(-2.0f, 4.0f, 4.0f), "Assets/Textures/rock2.jpg", "Assets/Textures/rock2_NRM.jpg", "Assets/Textures/rock2_DISP.jpg");
 
 	// floor
 	Quad floor;
@@ -195,8 +195,6 @@ int main()
 	// last mouse state
 	int lastMouseState = GLFW_RELEASE;
 
-	glEnable(GL_DEPTH_TEST);
-	glDepthFunc(GL_LEQUAL);
 	//glEnable(GL_CULL_FACE);
 	//glCullFace(GL_BACK);
 	//glFrontFace(GL_CW);
@@ -367,8 +365,11 @@ int main()
 		// update shaders
 		shaderLib.Update();
 
-		ShadowRenderPass(window, shaderLib, renderVolume, floor);
-		NormalRenderPass(window, camera, shaderLib, densityTextureBuffer, renderVolume, floor, debugQuad, displacementQuad, deltaTime);
+		glEnable(GL_DEPTH_TEST);
+		glDepthFunc(GL_LEQUAL);
+
+		ShadowRenderPass(window, shaderLib, renderVolume, floor, displacementQuad, displacementQuad2);
+		NormalRenderPass(window, camera, shaderLib, densityTextureBuffer, renderVolume, floor, debugQuad, displacementQuad, displacementQuad2, deltaTime);
 
 		// swap buffers
 		window.SwapBuffers();
@@ -382,7 +383,7 @@ int main()
 	return 0;
 }
 
-void NormalRenderPass(Window& window, FPSCamera& camera, ShaderLibrary& shaderLib, TextureBuffer3D& densityTextureBuffer, RenderVolume& renderVolume, Quad& floor, Quad& debugQuad, AdvancedQuad& displacementQuad, float deltaTime)
+void NormalRenderPass(Window& window, FPSCamera& camera, ShaderLibrary& shaderLib, TextureBuffer3D& densityTextureBuffer, RenderVolume& renderVolume, Quad& floor, Quad& debugQuad, AdvancedQuad& displacementQuad, AdvancedQuad& displacementQuad2, float deltaTime)
 {
 	window.SetClearColor({ 0.06f, 0.13f, 0.175f, 1.0f });
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -478,7 +479,6 @@ void NormalRenderPass(Window& window, FPSCamera& camera, ShaderLibrary& shaderLi
 
 		glUniformMatrix4fv(glGetUniformLocation(displacementShader->program, "projection"), 1, GL_FALSE, glm::value_ptr(projectionMatrix));
 		glUniformMatrix4fv(glGetUniformLocation(displacementShader->program, "view"), 1, GL_FALSE, glm::value_ptr(viewMatrix));
-		glUniformMatrix4fv(glGetUniformLocation(displacementShader->program, "model"), 1, GL_FALSE, glm::value_ptr(displacementQuad.GetModelMatrix()));
 
 		glUniform3fv(glGetUniformLocation(displacementShader->program, "lightPos"), 1, &lightPos[0]);
 		glUniform3fv(glGetUniformLocation(displacementShader->program, "viewPos"), 1, &camera.GetPosition()[0]);
@@ -487,7 +487,11 @@ void NormalRenderPass(Window& window, FPSCamera& camera, ShaderLibrary& shaderLi
 		glUniform1i(glGetUniformLocation(displacementShader->program, "displacementInitialSteps"), displacementInitialSteps);
 		glUniform1i(glGetUniformLocation(displacementShader->program, "displacementRefinementSteps"), displacementRefinementSteps);
 
+		glUniformMatrix4fv(glGetUniformLocation(displacementShader->program, "model"), 1, GL_FALSE, glm::value_ptr(displacementQuad.GetModelMatrix()));
 		displacementQuad.Render(displacementShader);
+
+		glUniformMatrix4fv(glGetUniformLocation(displacementShader->program, "model"), 1, GL_FALSE, glm::value_ptr(displacementQuad2.GetModelMatrix()));
+		displacementQuad2.Render(displacementShader);
 	}
 
 	if (wireframeMode)
@@ -528,7 +532,7 @@ void NormalRenderPass(Window& window, FPSCamera& camera, ShaderLibrary& shaderLi
 		glUniformMatrix4fv(glGetUniformLocation(floorShader->program, "cameraToShadowProjection"), 1, GL_FALSE, glm::value_ptr(shadowProjection));
 
 		glm::vec3 floorColor(0.0f, 0.36f, 0.04f);
-		glUniformMatrix3fv(glGetUniformLocation(floorShader->program, "lightPos"), 1, GL_FALSE, &lightPos[0]);
+		glUniform3fv(glGetUniformLocation(floorShader->program, "objectColor"), 1, &floorColor[0]);
 
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, shadowMapTexture);
@@ -556,7 +560,7 @@ void NormalRenderPass(Window& window, FPSCamera& camera, ShaderLibrary& shaderLi
 	RenderCrosshair(hudShader, glm::vec3(1.0f), window.GetWidth(), window.GetHeight());
 }
 
-void ShadowRenderPass(Window& window, ShaderLibrary& shaderLib, RenderVolume& renderVolume, Quad& floor)
+void ShadowRenderPass(Window& window, ShaderLibrary& shaderLib, RenderVolume& renderVolume, Quad& floor, AdvancedQuad& displacementQuad, AdvancedQuad& displacementQuad2)
 {
 	glBindFramebuffer(GL_FRAMEBUFFER, shadowMapFBO);
 	glViewport(0, 0, SHADOWMAP_SIZE, SHADOWMAP_SIZE);
@@ -569,6 +573,17 @@ void ShadowRenderPass(Window& window, ShaderLibrary& shaderLib, RenderVolume& re
 
 	glm::mat4 shadowProjection = GetShadowProjection();
 	glUniformMatrix4fv(glGetUniformLocation(vsmShadowShader->program, "cameraToShadowProjection"), 1, GL_FALSE, glm::value_ptr(shadowProjection));
+
+	glCullFace(GL_FRONT);
+
+	if (renderDisplacementQuad)
+	{
+		glUniformMatrix4fv(glGetUniformLocation(vsmShadowShader->program, "model"), 1, GL_FALSE, glm::value_ptr(displacementQuad.GetModelMatrix()));
+		displacementQuad.RenderShadowPass();
+
+		glUniformMatrix4fv(glGetUniformLocation(vsmShadowShader->program, "model"), 1, GL_FALSE, glm::value_ptr(displacementQuad2.GetModelMatrix()));
+		displacementQuad2.RenderShadowPass();
+	}
 
 	// render the render volume
 	if (renderMarchingCubes)
@@ -588,27 +603,31 @@ void ShadowRenderPass(Window& window, ShaderLibrary& shaderLib, RenderVolume& re
 		floor.Render();
 	}
 
+	glCullFace(GL_BACK);
+
 	// blur
-	//glDisable(GL_DEPTH_TEST);
+	glDisable(GL_DEPTH_TEST);
 
-	//Shader* blurShader = shaderLib.GetShader(blurKey);
-	//blurShader->Use();
+	Shader* blurShader = shaderLib.GetShader(blurKey);
+	blurShader->Use();
 
-	////// blur horizontally to blurTexture
-	//glBindFramebuffer(GL_FRAMEBUFFER, blurFBO);
-	//glBindTexture(GL_TEXTURE_2D, shadowMapTexture);
-	//glUniform2f(glGetUniformLocation(blurShader->program, "scale"), 1.0f / SHADOWMAP_SIZE * BLUR_SCALE, 0.0f);
-	//glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	//DrawFullscreenQuad();
+	// blur horizontally to blurTexture
+	glBindFramebuffer(GL_FRAMEBUFFER, blurFBO);
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, shadowMapTexture);
+	glUniform2f(glGetUniformLocation(blurShader->program, "scale"), 1.0f / SHADOWMAP_SIZE * BLUR_SCALE, 0.0f);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	DrawFullscreenQuad();
 
-	////// blur texture vertically to shadowMapTexture
-	//glBindFramebuffer(GL_FRAMEBUFFER, shadowMapFBO);
-	//glBindTexture(GL_TEXTURE_2D, blurTexture);
-	//glUniform2f(glGetUniformLocation(blurShader->program, "scale"), 0.0f, 1.0f / SHADOWMAP_SIZE * BLUR_SCALE);
-	//glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	//DrawFullscreenQuad();
+	// blur texture vertically to shadowMapTexture
+	glBindFramebuffer(GL_FRAMEBUFFER, shadowMapFBO);
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, blurTexture);
+	glUniform2f(glGetUniformLocation(blurShader->program, "scale"), 0.0f, 1.0f / SHADOWMAP_SIZE * BLUR_SCALE);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	DrawFullscreenQuad();
 
-	//glEnable(GL_DEPTH_TEST);
+	glEnable(GL_DEPTH_TEST);
 
 	// reset
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -660,11 +679,6 @@ void RenderCrosshair(Shader* shader, glm::vec3 color, GLuint width, GLuint heigh
 	glBindVertexArray(0);
 }
 
-void BlurShadowmap(ShaderLibrary& shaderLib)
-{
-	
-}
-
 GLuint Create2DTexture(GLint internalFormat, GLsizei width, GLsizei height, GLenum format, GLenum type)
 {
 	GLuint texture;
@@ -711,7 +725,8 @@ GLuint CreateFramebuffer(GLuint colorTexture, GLuint depthTexture)
 glm::mat4 GetShadowProjection()
 {
 	glm::mat4 shadowProjection;
-	shadowProjection *= glm::perspective(45.0f, 1.0f, 0.1f, 100.0f);
+	float orthoSize = 10.0f;
+	shadowProjection *= glm::ortho(-orthoSize, orthoSize, -orthoSize, orthoSize, 0.1f, 100.0f);
 	shadowProjection *= glm::lookAt(lightPos, glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 
 	return shadowProjection;
