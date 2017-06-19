@@ -95,7 +95,7 @@ GLuint blurTexture;
 GLuint blurFBO;
 
 static GLuint SHADOWMAP_SIZE = 1024;
-static const float BLUR_SCALE = 1.5f;
+static float BLUR_SCALE = 1.5f;
 
 int main()
 {
@@ -267,6 +267,19 @@ int main()
 			renderDensity = true;
 		}
 
+		// change blur strength
+
+		if (input->IsKeyPressed(GLFW_KEY_Y))
+		{
+			if (BLUR_SCALE > 0.0f)
+				BLUR_SCALE -= 0.5f;
+		}
+		if (input->IsKeyPressed(GLFW_KEY_U))
+		{
+			if (BLUR_SCALE < 5.0f)
+				BLUR_SCALE += 0.5f;
+		}
+
 		if (input->IsKeyPressed(GLFW_KEY_R))
 			camera.PrintInfo();
 
@@ -365,6 +378,12 @@ int main()
 		// update shaders
 		shaderLib.Update();
 
+		// update particles
+		for (size_t p = 0; p < particleSystems.size(); ++p)
+		{
+			particleSystems[p].UpdateParticles(shaderLib.GetShader(particleGeneratorKey), deltaTime);
+		}
+
 		glEnable(GL_DEPTH_TEST);
 		glDepthFunc(GL_LEQUAL);
 
@@ -422,9 +441,6 @@ void NormalRenderPass(Window& window, FPSCamera& camera, ShaderLibrary& shaderLi
 	{
 		for (size_t p = 0; p < particleSystems.size(); ++p)
 		{
-			// update particles
-			particleSystems[p].UpdateParticles(shaderLib.GetShader(particleGeneratorKey), deltaTime);
-
 			// render particles
 			Shader* particleRenderShader = shaderLib.GetShader(particleRendererKey);
 
@@ -575,6 +591,16 @@ void ShadowRenderPass(Window& window, ShaderLibrary& shaderLib, RenderVolume& re
 	glUniformMatrix4fv(glGetUniformLocation(vsmShadowShader->program, "cameraToShadowProjection"), 1, GL_FALSE, glm::value_ptr(shadowProjection));
 
 	glCullFace(GL_FRONT);
+
+	if (renderParticleSystem)
+	{
+		for (size_t p = 0; p < particleSystems.size(); ++p)
+		{
+			glm::mat4 modelMatrix;
+			glUniformMatrix4fv(glGetUniformLocation(vsmShadowShader->program, "model"), 1, GL_FALSE, glm::value_ptr(modelMatrix));
+			particleSystems[p].Render(vsmShadowShader);
+		}
+	}
 
 	if (renderDisplacementQuad)
 	{
