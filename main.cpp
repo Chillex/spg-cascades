@@ -510,12 +510,12 @@ void NormalRenderPass(Window& window, FPSCamera& camera, ShaderLibrary& shaderLi
 		displacementQuad2.Render(displacementShader);
 	}
 
-	if (wireframeMode)
-		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-
 	// render the render volume
 	if (renderMarchingCubes)
 	{
+		if (wireframeMode)
+			glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+
 		glm::mat4 modelMatrix;
 		modelMatrix = glm::scale(modelMatrix, glm::vec3(10.0f, 10.0f, 10.0f));
 
@@ -532,6 +532,8 @@ void NormalRenderPass(Window& window, FPSCamera& camera, ShaderLibrary& shaderLi
 		renderVolume.Render(geometryRendererShader);
 
 		// render floor
+		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+
 		glm::mat4 floorMatrix;
 		floorMatrix = glm::rotate(floorMatrix, 90.0f, glm::vec3(1.0f, 0.0f, 0.0f));
 		floorMatrix = glm::scale(floorMatrix, glm::vec3(10.0f, 10.0f, 10.0f));

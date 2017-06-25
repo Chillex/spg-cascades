@@ -22,10 +22,10 @@ void main() {
 	float b = blending.x + blending.y + blending.z;
 	blending /= vec3(b, b, b);
 
-	float scale = 5.0f;
-	vec2 uv1 = fs_in.position.yz;// * scale;
-	vec2 uv2 = fs_in.position.xz;// * scale;
-	vec2 uv3 = fs_in.position.xy;// * scale;
+	float scale = 3.0f;
+	vec2 uv1 = fs_in.position.yz * scale;
+	vec2 uv2 = fs_in.position.xz * scale;
+	vec2 uv3 = fs_in.position.xy * scale;
 
 	vec3 normal = fs_in.normal;
 
