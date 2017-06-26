@@ -25,6 +25,7 @@ public:
 	Shader(std::string vertexPath, std::string secondShaderPath, ShaderType::Enum secondShaderType, const GLchar** feedbackVaryings, const GLuint feedbackCount);
 	Shader(std::string vertexPath, std::string fragmentPath, std::string geometryPath);
 	Shader(std::string vertexPath, std::string fragmentPath, std::string geometryPath, const GLchar** feedbackVaryings, const GLuint feedbackCount);
+	Shader(std::string vertexPath, std::string tcsPath, std::string tesPath, std::string fragmentPath);
 
 	~Shader();
 
@@ -39,6 +40,8 @@ protected:
 	GLuint CreateVertexShader(const GLchar* shaderSource);
 	GLuint CreateFragmentShader(const GLchar* shaderSource);
 	GLuint CreateGeometryShader(const GLchar* shaderSource);
+	GLuint CreateTCSShader(const GLchar* shaderSource);
+	GLuint CreateTESShader(const GLchar* shaderSource);
 };
 
 #endif

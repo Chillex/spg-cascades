@@ -128,6 +128,38 @@ Shader::Shader(std::string vertexPath, std::string fragmentPath, std::string geo
 	glDeleteShader(fragmentShader);
 }
 
+Shader::Shader(std::string vertexPath, std::string tcsPath, std::string tesPath, std::string fragmentPath)
+{
+	// read shader files
+	const std::string vertexShaderCode = this->GetShaderCode(vertexPath.c_str());
+	const std::string tcsShaderCode = this->GetShaderCode(tcsPath.c_str());
+	const std::string tesShaderCode = this->GetShaderCode(tesPath.c_str());
+	const std::string fragmentShaderCode = this->GetShaderCode(fragmentPath.c_str());
+
+	// create shaders
+	GLuint vertexShader = this->CreateVertexShader(vertexShaderCode.c_str());
+	GLuint tcsShader = this->CreateTCSShader(tcsShaderCode.c_str());
+	GLuint tesShader = this->CreateTESShader(tesShaderCode.c_str());
+	GLuint fragmentShader = this->CreateFragmentShader(fragmentShaderCode.c_str());
+
+	// link the shaders together
+	this->program = glCreateProgram();
+
+	glAttachShader(this->program, vertexShader);
+	glAttachShader(this->program, tcsShader);
+	glAttachShader(this->program, tesShader);
+	glAttachShader(this->program, fragmentShader);
+	glLinkProgram(this->program);
+
+	CheckLinkStatus();
+
+	// shaders are no longer needed after the program is created
+	glDeleteShader(vertexShader);
+	glDeleteShader(tcsShader);
+	glDeleteShader(tesShader);
+	glDeleteShader(fragmentShader);
+}
+
 Shader::~Shader()
 {
 }
@@ -211,4 +243,14 @@ GLuint Shader::CreateFragmentShader(const GLchar* shaderSource)
 GLuint Shader::CreateGeometryShader(const GLchar* shaderSource)
 {
 	return CreateShader(GL_GEOMETRY_SHADER, shaderSource, "GEOMETRY");
+}
+
+GLuint Shader::CreateTCSShader(const GLchar* shaderSource)
+{
+	return CreateShader(GL_TESS_CONTROL_SHADER, shaderSource, "TCS");
+}
+
+GLuint Shader::CreateTESShader(const GLchar* shaderSource)
+{
+	return CreateShader(GL_TESS_EVALUATION_SHADER, shaderSource, "TES");
 }

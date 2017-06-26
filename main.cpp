@@ -19,9 +19,10 @@
 #include "ParticleSystem.h"
 #include "KDTreeController.h"
 #include "Ray.h"
+#include "Tesselation.h"
 
-void NormalRenderPass(Window& window, FPSCamera& camera, ShaderLibrary& shaderLib, TextureBuffer3D& densityTextureBuffer, RenderVolume& renderVolume, Quad& floor, Quad& debugQuad, AdvancedQuad& displacementQuad, AdvancedQuad& displacementQuad2, float deltaTime);
-void ShadowRenderPass(Window& window, ShaderLibrary& shaderLib, RenderVolume& renderVolume, Quad& floor, AdvancedQuad& displacementQuad, AdvancedQuad& displacementQuad2);
+void NormalRenderPass(Window& window, FPSCamera& camera, ShaderLibrary& shaderLib, TextureBuffer3D& densityTextureBuffer, RenderVolume& renderVolume, Quad& floor, Quad& debugQuad, AdvancedQuad& displacementQuad, AdvancedQuad& displacementQuad2, Tesselation& tesselation, float deltaTime);
+void ShadowRenderPass(Window& window, ShaderLibrary& shaderLib, RenderVolume& renderVolume, Quad& floor, AdvancedQuad& displacementQuad, AdvancedQuad& displacementQuad2, Tesselation& tesselation);
 
 void PrintDisplacementSettings(int initialSteps, int refinementSteps);
 void RenderCrosshair(Shader* shader, glm::vec3 color, GLuint width, GLuint height);
@@ -40,6 +41,7 @@ bool renderMarchingCubes = true;
 bool renderDisplacementQuad = true;
 bool renderParticleSystem = true;
 bool renderKDTree = false;
+bool tesselateCube = false;
 
 // shader keys
 std::string debug3DTextureShaderKey = "debug-3dtexture";
@@ -60,6 +62,8 @@ std::string hudKey = "hud";
 std::string vsmShadowKey = "vsm-shadow";
 std::string blurKey = "blur";
 std::string shadowReceiverKey = "shadow-receiver";
+
+std::string tesselationKey = "tesselation";
 
 // density texure info
 GLuint densityWidth = 96;
@@ -159,6 +163,9 @@ int main()
 	shaderLib.WatchShader(blurKey);
 	shaderLib.WatchShader(shadowReceiverKey);
 
+	// tesselation shader
+	shaderLib.WatchTesselationShader(tesselationKey);
+
 	// compile all the shaders
 	shaderLib.Update();
 
@@ -191,6 +198,9 @@ int main()
 	// blurring
 	blurTexture = Create2DTexture(GL_RG32F, SHADOWMAP_SIZE, SHADOWMAP_SIZE, GL_RG, GL_FLOAT);
 	blurFBO = CreateFramebuffer(blurTexture, -1);
+
+	// tesselation cube
+	Tesselation tesselation(tesselationKey);
 
 	// last mouse state
 	int lastMouseState = GLFW_RELEASE;
@@ -299,6 +309,10 @@ int main()
 		if (input->IsKeyPressed(GLFW_KEY_F))
 			renderKDTree = !renderKDTree;
 
+		// toggle tesselation
+		if (input->IsKeyPressed(GLFW_KEY_H))
+			tesselateCube = !tesselateCube;
+
 		// change displacement
 		if (input->IsKeyPressed(GLFW_KEY_7))
 		{
@@ -387,8 +401,8 @@ int main()
 		glEnable(GL_DEPTH_TEST);
 		glDepthFunc(GL_LEQUAL);
 
-		ShadowRenderPass(window, shaderLib, renderVolume, floor, displacementQuad, displacementQuad2);
-		NormalRenderPass(window, camera, shaderLib, densityTextureBuffer, renderVolume, floor, debugQuad, displacementQuad, displacementQuad2, deltaTime);
+		ShadowRenderPass(window, shaderLib, renderVolume, floor, displacementQuad, displacementQuad2, tesselation);
+		NormalRenderPass(window, camera, shaderLib, densityTextureBuffer, renderVolume, floor, debugQuad, displacementQuad, displacementQuad2, tesselation, deltaTime);
 
 		// swap buffers
 		window.SwapBuffers();
@@ -402,7 +416,7 @@ int main()
 	return 0;
 }
 
-void NormalRenderPass(Window& window, FPSCamera& camera, ShaderLibrary& shaderLib, TextureBuffer3D& densityTextureBuffer, RenderVolume& renderVolume, Quad& floor, Quad& debugQuad, AdvancedQuad& displacementQuad, AdvancedQuad& displacementQuad2, float deltaTime)
+void NormalRenderPass(Window& window, FPSCamera& camera, ShaderLibrary& shaderLib, TextureBuffer3D& densityTextureBuffer, RenderVolume& renderVolume, Quad& floor, Quad& debugQuad, AdvancedQuad& displacementQuad, AdvancedQuad& displacementQuad2, Tesselation& tesselation, float deltaTime)
 {
 	window.SetClearColor({ 0.06f, 0.13f, 0.175f, 1.0f });
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -558,6 +572,17 @@ void NormalRenderPass(Window& window, FPSCamera& camera, ShaderLibrary& shaderLi
 		glBindTexture(GL_TEXTURE_2D, 0);
 	}
 
+	if (tesselateCube)
+	{
+		tesselation.Render(shaderLib, viewMatrix, projectionMatrix);
+	}
+	else
+	{
+		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+		tesselation.RenderShadowPass(shaderLib, viewMatrix, projectionMatrix);
+		glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+	}
+
 	if (renderKDTree)
 	{
 		Shader* standardShader = shaderLib.GetShader(standardShaderKey);
@@ -578,7 +603,7 @@ void NormalRenderPass(Window& window, FPSCamera& camera, ShaderLibrary& shaderLi
 	RenderCrosshair(hudShader, glm::vec3(1.0f), window.GetWidth(), window.GetHeight());
 }
 
-void ShadowRenderPass(Window& window, ShaderLibrary& shaderLib, RenderVolume& renderVolume, Quad& floor, AdvancedQuad& displacementQuad, AdvancedQuad& displacementQuad2)
+void ShadowRenderPass(Window& window, ShaderLibrary& shaderLib, RenderVolume& renderVolume, Quad& floor, AdvancedQuad& displacementQuad, AdvancedQuad& displacementQuad2, Tesselation& tesselation)
 {
 	glBindFramebuffer(GL_FRAMEBUFFER, shadowMapFBO);
 	glViewport(0, 0, SHADOWMAP_SIZE, SHADOWMAP_SIZE);

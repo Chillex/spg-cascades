@@ -58,9 +58,50 @@ void ShaderLibrary::WatchShader(std::string id, const std::vector<const GLchar*>
 	WatchShader(id);
 }
 
+void ShaderLibrary::WatchTesselationShader(std::string id)
+{
+	// shader files
+	std::string shaderFilePaths[4] = {
+		(m_path / (id + ".vert")).string(),
+		(m_path / (id + ".tcs")).string(),
+		(m_path / (id + ".tes")).string(),
+		(m_path / (id + ".frag")).string()
+	};
+
+	// get the highest last modified date of the shaders
+	std::experimental::filesystem::file_time_type highestLastMadified;
+	for (unsigned int i = 0u; i < 3; ++i)
+	{
+		if (std::experimental::filesystem::exists(shaderFilePaths[i]))
+		{
+			std::experimental::filesystem::file_time_type modified = std::experimental::filesystem::last_write_time(shaderFilePaths[i]);
+			if (m_lastModifiedDates[id] < modified)
+			{
+				if (highestLastMadified < modified)
+					highestLastMadified = modified;
+			}
+		}
+	}
+
+	m_isTesselationShader[id] = true;
+	m_lastModifiedDates[id] = highestLastMadified;
+	m_dirtyShaders[id] = true;
+}
+
 void ShaderLibrary::AddShader(std::string id)
 {
 	m_dirtyShaders[id] = false;
+
+	if(m_isTesselationShader[id])
+	{
+		std::string vertexPath = (m_path / (id + ".vert")).string();
+		std::string tcsPath = (m_path / (id + ".tcs")).string();
+		std::string tesPath = (m_path / (id + ".tes")).string();
+		std::string fragementPath = (m_path / (id + ".frag")).string();
+
+		AddShader(id, vertexPath, tcsPath, tesPath, fragementPath);
+		return;
+	}
 
 	std::string vertexPath = (m_path / (id + ".vert")).string();
 	std::string fragementPath = (m_path / (id + ".frag")).string();
@@ -107,6 +148,11 @@ void ShaderLibrary::AddShader(std::string id, const std::string vertexPath, cons
 	{
 		m_loadedShaders[id] = new Shader(vertexPath, fragmentPath, geometryPath);
 	}
+}
+
+void ShaderLibrary::AddShader(std::string id, const std::string vertexPath, const std::string tcsPath, const std::string tesPath, const std::string fragmentPath)
+{
+	m_loadedShaders[id] = new Shader(vertexPath, tcsPath, tesPath, fragmentPath);
 }
 
 Shader* ShaderLibrary::GetShader(std::string id) const

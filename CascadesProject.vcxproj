@@ -140,6 +140,7 @@
     <ClCompile Include="RenderVolume.cpp" />
     <ClCompile Include="Shader.cpp" />
     <ClCompile Include="ShaderLibrary.cpp" />
+    <ClCompile Include="Tesselation.cpp" />
     <ClCompile Include="TextureBuffer3D.cpp" />
     <ClCompile Include="Texture2D.cpp" />
     <ClCompile Include="TextureBuffer.cpp" />
@@ -163,6 +164,7 @@
     <ClInclude Include="RenderVolume.h" />
     <ClInclude Include="Shader.h" />
     <ClInclude Include="ShaderLibrary.h" />
+    <ClInclude Include="Tesselation.h" />
     <ClInclude Include="TextureBuffer3D.h" />
     <ClInclude Include="Texture2D.h" />
     <ClInclude Include="TextureBuffer.h" />
